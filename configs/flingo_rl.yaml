@@ -44,6 +44,12 @@ env:
   jibe_threshold_deg: 150.0
   surge_speed_bonus: 0.0
   surge_speed_bonus_cap_m_s: 6.0
+  # The VMG term telescopes -- summed over an episode it is just
+  # (1/dt) * distance closed -- so ending at 1.6 m scores within 5 reward of
+  # ending at 1.5 m and nothing explicitly pays for crossing the success radius.
+  # That reads like a hole, but it is not one in practice: at 250k steps this
+  # config reaches the mark 65% of the time on VMG alone. A 200.0 terminal bonus
+  # was tried on 2026-09-19 (with gamma 0.999) and scored 0%; see the gamma note.
   success_reward: 0.0
   failure_penalty: 0.0
 train:
@@ -56,6 +62,18 @@ train:
   n_steps: 1024
   batch_size: 256
   n_epochs: 10
+  # 1/(1-gamma) at dt 0.02 is the horizon the policy can see: 0.99 gives 100
+  # steps = 2.0 s, against a 1750-step (35 s) episode. That looks far too short
+  # for a beat, and a 100k-step checkpoint did behave myopically -- constant
+  # action, bore away onto a reach, ended 43 m from a 20 m mark. It recovers on
+  # its own: by 250k the same config reaches the mark 65% of the time.
+  #
+  # TRIED AND REJECTED 2026-09-19: gamma 0.999 (bundled with success_reward 200)
+  # at a matched 250k budget scored 0% against this config's 65%, sailing off at
+  # 0.41 m/s without ever tacking -- the critic never fit the ~10x larger
+  # returns (explained_variance ~0 well into the run) with this vf_coef, lr and
+  # no reward normalization. If it is retried: change one of the two at a time,
+  # give it more than 250k steps, and normalize the reward.
   gamma: 0.99
   gae_lambda: 0.95
   clip_range: 0.2
