@@ -3,7 +3,7 @@
 import numpy as np
 
 from sailbench.models.model import State
-from sailbench.tf.tf_tree import Transform2D
+from sailbench.tf.tf_tree import TFTree2D, Transform2D
 
 
 def get_global_track(state: State) -> float:
@@ -60,6 +60,34 @@ def get_velocity_magnitude(state: State) -> float:
     u = state.u
     v = state.v
     return float(np.hypot(u, v))
+
+
+def apparent_wind_boat(
+    state: State,
+    tf_tree: TFTree2D,
+    wind_speed: float,
+    wind_dir_deg: float,
+) -> np.ndarray:
+    """Apparent wind in the boat frame, as the vector the air travels along.
+
+    Shared by every above-water model and by the hub's sheeting logic, so the
+    two cannot disagree about the wind. `wind_dir_deg` is the direction the
+    true wind blows *to*, in the world frame.
+
+    Args:
+        state (State): Current body state of the sailboat.
+        tf_tree (TFTree2D): Transform tree, used for the boat's heading.
+        wind_speed (float): True wind speed [m/s].
+        wind_dir_deg (float): Direction the true wind blows toward [deg].
+
+    Returns:
+        np.ndarray: Apparent wind vector in the boat frame [m/s].
+
+    """
+    wind_rad = np.radians(float(wind_dir_deg))
+    wind_world = float(wind_speed) * np.array([np.cos(wind_rad), np.sin(wind_rad)], dtype=float)
+    v_boat_world = tf_tree.vector_to_frame(np.array([state.u, state.v], dtype=float), "boat", "world")
+    return np.asarray(tf_tree.vector_to_frame(wind_world - v_boat_world, "world", "boat"), dtype=float)
 
 
 def fluid_transform_from_state(state: State) -> Transform2D:

@@ -6,8 +6,8 @@ from pathlib import Path
 import numpy as np
 import yaml
 
+import sailbench.utils.coordinate_helper as utils
 from sailbench.dynamics.basic_hull_model import BasicHullModel
-from sailbench.dynamics.quadratic_drag_hydro import QuadraticHydroModel
 from sailbench.foils.basic_keel import BasicKeel
 from sailbench.foils.basic_rudder import BasicRudder
 from sailbench.foils.sail_factory import build_sail
@@ -211,16 +211,13 @@ class SailboatHub:
         Luffing/depower remains in the aerodynamic sail model.
         """
 
-        # Compute wind vector in world frame
-        wind_speed = float(self.sail_cfg.get("wind_speed", 0.0))
-        wind_angle_deg = float(self.sail_cfg.get("wind_dir_deg", 0.0))
-        wind_rad = float(np.radians(wind_angle_deg))
-        wind_world = wind_speed * np.array([np.cos(wind_rad), np.sin(wind_rad)], dtype=float)
-
-        # Compute boat velocity in world frame
-        v_boat_world = self.tf.vector_to_frame(np.array([state.u, state.v], dtype=float), "boat", "world")
-        apparent_wind_world = wind_world - v_boat_world
-        apparent_wind_boat = self.tf.vector_to_frame(apparent_wind_world, "world", "boat")
+        # Same apparent wind the sail model sees, so the two cannot disagree.
+        apparent_wind_boat = utils.apparent_wind_boat(
+            state,
+            self.tf,
+            float(self.sail_cfg.get("wind_speed", 0.0)),
+            float(self.sail_cfg.get("wind_dir_deg", 0.0)),
+        )
         awa = float(np.arctan2(-apparent_wind_boat[1], -apparent_wind_boat[0]))
 
         # Pure geometric sheeting:
