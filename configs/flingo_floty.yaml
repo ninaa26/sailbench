@@ -1,69 +1,147 @@
+# Flingo Floaty, measured.
+#
+# Geometry from "Full Boat Assembly Final.SLDASM"; mass properties built
+# bottom-up from the Fall 2025 mech report's materials. Positions are relative
+# to the mass-weighted CG (= LCB), not the CAD's volume-weighted CG 92 mm
+# forward.
+#
+# This file used to hold first estimates rather than measurements. What changed:
+#   hull   L/B/T were 1.0 / 0.5 / 0.125, round numbers standing in for the real
+#          hull. Now 1.372 / 0.492 / 0.110, off the floating waterline at 27 kg.
+#          Also drops xu1/yv1/nr1 and xu2/yv2/nr2, which belong to the linear and
+#          quadratic hydro models and were read by nothing here, and sets `rho`
+#          rather than `rho_water`, which is the key BasicHullModel looks for.
+#   boat   inertia_z 1.0 -> 3.4 kg.m2, bottom-up from the report's materials.
+#   keel   area 0.13 -> 0.1225 m2 (STL projected silhouette), and 0.184 m forward
+#          of the CG rather than sitting on it. On the CG it had no moment arm,
+#          so the keel contributed nothing to yaw.
+#   rudder area 0.046 -> 0.0462 m2, arm -0.46 -> -0.227 m against the real CG.
+#   sail   NeuralFoil section polar -> ORC envelope, main + jib (orc_w_jib). A
+#          symmetric NACA section carries no camber and makes no lift at zero
+#          incidence, which is the wrong shape for a sail. Area 1.34 -> 1.971 m2,
+#          main 1.196 + jib 0.775, both measured.
+#
+# Switching `sail.model_type` to `orc_main` sails the same boat with the jib
+# struck. `basic` or `hybrid` would need that model's own keys adding back.
 simulation:
   dt: 0.02  # [s] solver step
 
 boat:
-  mass: 27.0       # [kg]
-  inertia_z: 1.0  # [kg·m²] yaw inertia
+  mass: 27.0      # [kg]
+  # Bottom-up from the report's materials, not the CAD mass properties: the CAD
+  # densities are wrong (keel and rudder both compute to 1000 kg/m³), which gave
+  # 7.391. Band is 3.1-4.1 depending on how the 15 kg of bench plates are laid
+  # out; that layout is the single biggest lever on yaw response.
+  inertia_z: 3.4  # [kg·m²] yaw about the vertical through the CG
 
 hull:
-  rho_water: 1000
-  x_pos: 0.0  # [m]     x position relative to boat center of rotation
-  y_pos: 0.0  # [m]     y position relative to boat center of rotation
-  xu1:      20.0         # [N·s/m]    surge
-  yv1:      40.0         # [N·s/m]    sway
-  nr1:      15.0         # [N·m·s/rad] yaw
-  xu2:      5.0          # [N·s²/m²]
-  yv2:      80.0
-  nr2:      10.0
-  L: 1.0 # [m] length of waterline
-  B: 0.5 # [m] beam
-  T: 0.125 # [m] draft
+  # BasicHullModel gets its drag from L, B and T, so that is all this boat
+  # needs. The xu1/yv1/nr1 coefficients in the other configs belong to
+  # LinearHydroModel and QuadraticHydroModel, neither of which the hub uses.
+  # None have been measured for this hull, and guessed values would look like
+  # measurements next to everything else here.
+  rho: 1000.0  # [kg/m³] fresh water
+  x_pos: 0.0   # [m]     x position relative to boat center of rotation
+  y_pos: 0.0   # [m]     y position relative to boat center of rotation
+  L: 1.372     # [m] length of waterline, at the floating waterline for 27 kg
+  B: 0.492     # [m] beam at waterline
+  T: 0.110     # [m] hull draft (canoe body, not to keel tip)
 
 keel:
-  # Thicker section (12%) gives better L/D at boat Re than NACA0006 (6%)
+  # Thicker section (10%) gives better L/D at boat Re than NACA0006 (6%)
   airfoil_name: NACA0010
-  model_type: keel
+  # No model_type here: only the sail block's is read (there is one keel model
+  # and one rudder model). The other configs carry a copy-pasted `model_type:
+  # keel` in both blocks; it has never selected anything.
   alpha_min: -179 # Minimum and maximum angle of attack in degrees
   alpha_max: 179
-  res: [5e5]   # Reynolds number
-  area: 0.13    # [m²]    planform area — larger = more lateral lift, less leeway
-  x_pos: 0.0  # [m]     x position relative to boat center of rotation
-  y_pos: 0.0  # [m]     y position relative to boat center of rotation
+  res: [2.6e5]  # Re = V*c/nu at 1.5 m/s on the measured 0.175 m mean chord
+  area: 0.1225  # [m²]   planform area (STL projected silhouette)
+  x_pos: 0.184  # [m]    forward of the CG (CG = LCB, fixed by level flotation)
+  y_pos: 0.0    # [m]    y position relative to boat center of rotation
+  # Measured, but BasicKeel has no key for any of it: span 0.700 m from hull
+  # underside to tip, geometric AR 4.00, effective AR 8.0 with the hull as an
+  # end plate. BasicKeel is 2-D and charges no induced drag. Recorded here so
+  # the numbers are not lost.
 
 sail:
-  model_type: sail
-  area: 1.34 # [m²]
+  # ORC VPP coefficient envelope against apparent wind angle. Flingo is a sloop,
+  # not the single-sail rig the earlier notes assumed: main 1.196 m² (luff 2.326,
+  # AR 4.53) + jib 0.775 m² (luff 2.260, AR 6.59). `orc_w_jib` is the
+  # main-and-jib model. Switching this one line to `orc_main` sails the same
+  # boat with the jib struck, i.e. main alone at 1.196 m². Leave jib_area in
+  # place for that; orc_main reads it as the sail to drop.
+  model_type: orc_w_jib
+  # The simulator carries one sail, so `area` is the COMBINED reference area and
+  # `jib_area` tells the model how much of it to look up in the jib table
+  # (ORC 5.4.1: coefficients blend by area share).
+  area: 1.971      # [m²]   main + jib; sail area / displacement^(2/3) = 21.9
+  jib_area: 0.775  # [m²]   measured; 39% of the rig
+  air_density: 1.225  # [kg/m³] sea-level air
   wind_speed: 5
   wind_dir_deg: 90  # direction wind blows TO (deg, 0=east, 90=north)
-  x_pos: 0.1
+  x_pos: 0.267      # [m]   combined CE, 0.083 m forward of the keel CLR
   y_pos: 0.0
-  # NeuralFoil model parameters
-  alpha_min: -179 # Minimum and maximum angle of attack in degrees
-  alpha_max: 179
-  res: [1e5]   # Reynolds number
-  # Hybrid aerodynamic model (CL_max, CD0, CD1)
-  CL_max: 1
-  CD0: 0.1
-  CD1: 0.8
-
+  # Rig height for ORC induced drag: measured masthead above the waterline,
+  # ORC's (b + HBI). Both sails hang from roughly this height.
+  heff: 2.592  # [m]
+  # ORC 5.4.3 does not use that height as-is. Close-hauled the deck-sweeping jib
+  # seals against the hull and the two sails work as one taller wing, so the
+  # effective height peaks at 20 deg AWA (Figure 5.14) and falls to 0.80x once
+  # the sheets are eased past 80. Induced drag goes as 1/heff², so holding heff
+  # at the masthead over-charges the rig on a beat.
+  #
+  # Which edition of the curve is a choice:
+  #   orc-2022  peak 1.22   used with ORC's milder depowering (min flat 0.62)
+  #   orc-2023  peak 1.45   raised as a package WITH deeper depowering (0.42)
+  # This boat has no righting-moment limit yet, so it cannot pay the 2023
+  # package's other half. Stay on 2022 until max_heeling_moment_nm is set, then
+  # move to 2023. Unset, heff is constant.
+  heff_model: orc-2022
+  # ORC eq. 5.42 sail-plan correction, from the measured rig:
+  #   roach         0.000  main area 1.1955 equals 0.5 * luff * foot exactly
+  #   fractionality 0.937  jib head 2.260 / main head 2.412, both above deck
+  #   overlap       1.0    ASSUMED: LP = 0.686 = foot, J not in the CAD notes
+  #   1.1 + 0.08*(0 - 0.2) + 0.5*(0.68 + 0.31*0.937 + 0.075*1.0 - 1.1)
+  eff_span_corr: 1.057
+  # ORC depowering. Both keys together, or neither. UNSET because the righting
+  # moment is not measured: the CAD CG sits 0.17 m ABOVE the waterline, which
+  # would give GM ~0.09 m, but that rests on the densities the measurement file
+  # flags as wrong (keel and rudder both compute to 1000 kg/m³). An inclining
+  # test gives it directly. The arm is the sail CE above the centre of lateral
+  # resistance: CE is 1.017 m above the waterline and the keel spans 0.110-0.810
+  # below it, so roughly 1.47 m.
+  # max_heeling_moment_nm: 30.0
+  # heel_arm_m: 1.47
+  #
+  # No NeuralFoil or hybrid parameters. The ORC model opens no section polar
+  # and evaluates no analytic CL curve, so airfoil_name, res, alpha_min,
+  # alpha_max, CL_max, CD0 and CD1 would all go unread (sail_factory warns if
+  # you add them). Re on the measured 0.447 m mean chord at 6 m/s apparent is
+  # 1.8e5 if a section model is ever fitted here. Switching model_type to
+  # `basic` or `hybrid` means adding that model's keys too.
 
 rudder:
   airfoil_name: NACA0012
-  model_type: keel
   alpha_min: -179 # Minimum and maximum angle of attack in degrees
   alpha_max: 179
-  res: [5e5]
-  area: 0.046    # [m²]    planform area (fin + bulb strut)
-  x_pos: -0.46  # [m]     x position relative to boat center of rotation
-  y_pos: 0.0  # [m]     y position relative to boat center of rotation
-  moment_coeff: 3.5
-  effectiveness: 0.2  # scale rudder force to avoid over-steer
+  res: [1.2e5]   # Re = V*c/nu at 1.5 m/s on the measured 0.082 m mean chord
+  area: 0.0462   # [m²]   blade planform, stock excluded
+  x_pos: -0.227  # [m]    aft of the CG; arm 92 mm shorter against the real CG
+  y_pos: 0.0     # [m]    y position relative to boat center of rotation
+  # Left at the 0.2 the other configs use. BasicRudder is 2-D with no
+  # finite-span correction, and this factor is the hand-tuned stand-in for it.
+  # Raising it would over-steer the boat.
+  effectiveness: 0.2
   aoa_limit_deg: 35.0  # clamp effective AoA for stalled rudder behavior
   cl_max: 1.0
   cd_max: 1.2
-  deadband_deg: 1.5     # small stick noise -> zero command
-  center_tau_s: 0.6     # time constant to return to center when cmd==0
-  max_rate_deg_s: 120.0 # servo rate limit for manual controllability
+  # Manual-helm aids, off here. A deadband drops small commands and an
+  # auto-centre moves the rudder nobody asked for, which makes it hard for a
+  # policy to tell what its own action did.
+  deadband_deg: 0.0
+  center_tau_s: 0.0
+  max_rate_deg_s: 120.0  # servo slew limit
 
 windage:
   # Above-water drag: mast, rigging, topsides and deck gear. ORC treats this
