@@ -15,7 +15,7 @@ import yaml
 from stable_baselines3 import PPO
 from stable_baselines3.common.callbacks import CallbackList, CheckpointCallback, EvalCallback
 from stable_baselines3.common.monitor import Monitor
-from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv, VecNormalize
+from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv, VecEnv, VecNormalize
 
 # Ensure the repository root is importable when running this file directly.
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -30,6 +30,49 @@ def _sb3_waypoint_monitor_env(env_dict: dict[str, Any]) -> Monitor:
     """Top-level factory for SubprocVecEnv workers (must be picklable)."""
     cfg = WaypointEnvConfig(**env_dict)
     return Monitor(WaypointEnv(config=cfg))
+
+
+class SeededEvalCallback(EvalCallback):
+    """`EvalCallback` that re-seeds its environment before every evaluation.
+
+    Left unseeded, each evaluation draws a fresh set of start poses and
+    waypoints, and the waypoint radius alone spans 12-25 m. The score then moves
+    with the draw as much as with the policy -- successive evaluations on one run
+    came back at -348, -1391 and -633 with no trend -- and `best_model` is
+    selected partly by which evaluation happened to draw short legs.
+
+    Seeding once per evaluation is enough to fix the whole set: `reset(seed=...)`
+    re-seeds the env's RNG, and the auto-resets that carry it through the
+    remaining episodes continue that one stream deterministically.
+    """
+
+    def __init__(
+        self,
+        eval_env: VecEnv,
+        *,
+        eval_seed: int,
+        best_model_save_path: str,
+        log_path: str,
+        eval_freq: int,
+        n_eval_episodes: int,
+        deterministic: bool,
+    ) -> None:
+        """Wrap `EvalCallback`, remembering the seed to restart each eval from."""
+        super().__init__(
+            eval_env=eval_env,
+            best_model_save_path=best_model_save_path,
+            log_path=log_path,
+            eval_freq=eval_freq,
+            n_eval_episodes=n_eval_episodes,
+            deterministic=deterministic,
+        )
+        self.eval_seed = int(eval_seed)
+
+    def _on_step(self) -> bool:
+        """Re-seed the eval env on the steps where the parent would evaluate."""
+        if self.eval_freq > 0 and self.n_calls % self.eval_freq == 0:
+            self.eval_env.seed(self.eval_seed)
+        return bool(super()._on_step())
 
 
 def _load_yaml(path: Path) -> dict[str, Any]:
@@ -218,7 +261,8 @@ def main(argv: list[str] | None = None) -> None:
         save_replay_buffer=False,
         save_vecnormalize=True,
     )
-    eval_callback = EvalCallback(
+    eval_callback = SeededEvalCallback(
+        eval_seed=seed,
         eval_env=eval_env,
         best_model_save_path=str(best_model_dir),
         log_path=str(eval_logs_dir),

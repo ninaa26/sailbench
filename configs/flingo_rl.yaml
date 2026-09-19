@@ -59,7 +59,12 @@ train:
   normalize_observation: false
   normalize_reward: false
   checkpoint_freq: 25000
-  eval_freq: 10000
+  # 10000 made evaluation cost more simulation than training: 75 evals x 10
+  # episodes x up to 1750 steps is up to 1.31 M eval steps against 750 k training
+  # steps, and all of it runs serially on one DummyVecEnv. At 50000 it is 15
+  # evals, and the eval set is now fixed (SeededEvalCallback) so fewer of them
+  # still give a comparable curve.
+  eval_freq: 50000
   eval_episodes: 10
   deterministic_eval: true
   tensorboard_log: runs/tensorboard
