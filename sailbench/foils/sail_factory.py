@@ -15,6 +15,7 @@ from typing import Any
 
 from sailbench.foils.basic_sail import BasicSail
 from sailbench.foils.hybrid_sail import HybridSail
+from sailbench.foils.orc_sail import ORCMainSail, ORCWithJibSail
 from sailbench.models.model import Model
 
 # Sail models a config may select with `sail.model_type`.
@@ -22,6 +23,8 @@ SAIL_MODELS: dict[str, type[Model]] = {
     "basic": BasicSail,  # NeuralFoil section polar
     "sail": BasicSail,  # older name for `basic`, used by the existing configs
     "hybrid": HybridSail,  # analytic CL = CL_max sin(2a)
+    "orc_main": ORCMainSail,  # ORC VPP envelope, single mainsail
+    "orc_w_jib": ORCWithJibSail,  # ORC VPP envelope, main + jib
 }
 
 # What a sail block with no model_type gets. This is what the hub built

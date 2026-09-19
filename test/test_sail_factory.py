@@ -52,7 +52,7 @@ def test_an_unknown_model_is_an_error_not_a_fallback() -> None:
     a near-miss: the boat sails backwards.
     """
     cfg = _sail_block()
-    cfg["model_type"] = "orc_w_jib"
+    cfg["model_type"] = "gaff_cutter"
     with pytest.raises(ValueError, match="does not exist") as excinfo:
         build_sail(cfg)
     # The message has to say what you could have picked instead.
