@@ -8,6 +8,7 @@ import yaml
 
 import sailbench.utils.coordinate_helper as utils
 from sailbench.dynamics.basic_hull_model import BasicHullModel
+from sailbench.dynamics.windage import Windage
 from sailbench.foils.basic_keel import BasicKeel
 from sailbench.foils.basic_rudder import BasicRudder
 from sailbench.foils.sail_factory import build_sail
@@ -31,6 +32,7 @@ class SailboatHub:
         self.keel_cfg = cfg["keel"]
         self.rudder_cfg = cfg["rudder"]
         self.sail_cfg = cfg["sail"]
+        self.windage_cfg = cfg.get("windage", {})
 
         self.tf = TFTree2D()
         # Last computed sail force in boat frame (Fx, Fy) for diagnostics / UI.
@@ -52,6 +54,16 @@ class SailboatHub:
         self.hull = BasicHullModel(self.hull_cfg)
         self.keel = BasicKeel(self.keel_cfg)
         self.components = [self.hull, self.keel, self.sail, self.rudder]
+
+        # Above-water drag is its own component, not part of the sail: the sail
+        # is a trimmable lifting surface, the mast and topsides are bluff bodies.
+        # Gated on an area rather than on the section existing, so a boat that
+        # says nothing about windage behaves exactly as it did before.
+        has_windage = any(float(self.windage_cfg.get(key, 0.0)) > 0.0 for key in ("frontal_area_m2", "drag_area_m2"))
+        self.windage = Windage(self.windage_cfg) if has_windage else None
+        if self.windage is not None:
+            self.components.append(self.windage)
+            self._sync_wind()
         self.m = self.boat_cfg.get("mass", self.boat_cfg.get("m", 27.0))
         self.iz = self.boat_cfg.get("inertia_z", self.boat_cfg.get("Iz", 25.0))
 
@@ -107,6 +119,7 @@ class SailboatHub:
         `sail_angle` is treated as sheet limit (max |sail angle| from centerline),
         not as a rigid commanded sail angle.
         """
+        self._sync_wind()
 
         def dynamics(arr: np.ndarray) -> np.ndarray:
             """State derivative; arr = [x, y, c, s, u, v, r]."""
@@ -204,6 +217,19 @@ class SailboatHub:
             ),
         )
 
+    def _sync_wind(self) -> None:
+        """Keep the windage model on the same wind as the sail.
+
+        Wind lives in the sail's config section and callers change it by writing
+        there. Copying it across each step stops a second aerodynamic component
+        quietly running on the wind from whenever it was built.
+        """
+        if self.windage is None:
+            return
+        for key in ("wind_speed", "wind_dir_deg"):
+            if key in self.sail_cfg:
+                self.windage_cfg[key] = self.sail_cfg[key]
+
     def _resolve_sail_angle_from_sheet(self, state: State, sheet_limit_rad: float) -> float:
         """Resolve sail angle from apparent wind side and geometric sheet angle.
 
@@ -268,6 +294,8 @@ class SailboatHub:
                 if component is self.keel
                 else "rudder"
                 if component is self.rudder
+                else "windage"
+                if component is self.windage
                 else "sail"
             )
             self.last_forces[name] = (fx, fy)
