@@ -38,8 +38,33 @@ env:
   time_penalty: 0.0
   stagnation_penalty: 0
   stagnation_u_threshold: 0.35
-  no_go_zone_penalty: 0.3
-  no_go_zone_half_angle_deg: 45.0
+  # A TASK CONSTRAINT STANDING IN FOR MISSING PHYSICS, not a tuning parameter.
+  # Flingo holds 22 deg true in the simulator and drives at 1.46 m/s there; a
+  # real boat of her type stops between 30 and 45. Searched for the cause on
+  # 2026-09-19 and did not find it -- rig induced drag (kheff off), keel induced
+  # drag (end_plate 2.0 -> 1.4 and 1.2) and the heel depowering that
+  # flat_for_righting_moment already implements (righting moment swept 10-120
+  # N.m) all leave the minimum angle at 18-22 deg. A 50% change in induced drag
+  # buys about 2 deg of drag angle and roughly 12 are needed. What is left is the
+  # sail's lift at low apparent wind, which is ORC's own published table, and
+  # changing that to match a reference band drawn from full-size keelboats is
+  # not a measurement. A GPS log of Flingo beating would settle it in an
+  # afternoon; delete this block when there is one.
+  #
+  # 0.3 did nothing: it peaked at 0.054 per step against a VMG term reaching
+  # 1.28. 15.0 worked on its target -- time inside 25 deg fell 41% -> 28%, mean
+  # speed rose 1.04 -> 1.20 -- but it was far too big: at ~1.3 per step it
+  # matched the whole VMG term, the sheet's contribution (0.2-0.5 per step)
+  # became second-order, and the policy went back to strapping the main flat for
+  # 100% of its steps. Footing only has to beat pinching by the VMG difference
+  # between 25 and 40 degrees, which is 0.04, plus the tacks it saves. 3.0 gives
+  # 0.26 per step at 25 deg: decisive against 0.04, still small against the sheet.
+  no_go_zone_penalty: 3.0
+  no_go_zone_half_angle_deg: 35.0  # real no-go for this type; the sim's is ~22
+  # Charge for settling inside the zone, not for entering it. At 0 this prices
+  # the tack itself -- a tack is inside for ~2.3 s -- and the policy stops
+  # tacking rather than starting to foot.
+  no_go_occupancy_tau_s: 4.0
   jibe_penalty: 0.5
   jibe_threshold_deg: 150.0
   surge_speed_bonus: 0.0

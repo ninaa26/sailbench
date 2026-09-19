@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import math
+
 import numpy as np
 import pytest
 
+from sailbench.models.model import State
 from sailbench.rl.envs.waypoint_env import WaypointEnv, WaypointEnvConfig
 
 
@@ -170,3 +173,72 @@ def test_reaching_the_waypoint_pays_the_success_reward() -> None:
     assert info["is_success"]
     assert terminated
     assert reward == pytest.approx(200.0, abs=1.0)
+
+
+def _no_go_env(tau: float) -> WaypointEnv:
+    return WaypointEnv(
+        config=WaypointEnvConfig(
+            simulator_config="basic_sailbot.yaml",
+            no_go_zone_penalty=15.0,
+            no_go_zone_half_angle_deg=35.0,
+            no_go_occupancy_tau_s=tau,
+        )
+    )
+
+
+def _point(env: WaypointEnv, twa_deg: float) -> None:
+    """Aim the boat `twa_deg` off the wind, without touching anything else."""
+    wind_to = math.radians(float(env.hub.sail_cfg["wind_dir_deg"]))
+    heading = wind_to + math.pi - math.radians(twa_deg)
+    env.state = State(x=env.state.x, y=env.state.y, psi=(math.cos(heading), math.sin(heading)), u=1.0, v=0.0, r=0.0)
+
+
+def test_no_go_charge_on_contact_is_unchanged_at_tau_zero() -> None:
+    """Tau 0 keeps the old behaviour, so configs written before this are untouched."""
+    env = _no_go_env(tau=0.0)
+    env.reset(seed=1)
+    _point(env, 0.0)
+    expected = 15.0 * (1.0 - math.cos(math.radians(35.0)))
+    assert env._no_go_zone_penalty() == pytest.approx(expected, rel=1e-6)
+
+
+def test_passing_through_costs_far_less_than_settling_in() -> None:
+    """A tack sweeps the zone in ~2.3 s; pinching lives there. Only the second is charged."""
+    env = _no_go_env(tau=4.0)
+    env.reset(seed=2)
+    _point(env, 10.0)
+
+    passing = sum(env._no_go_zone_penalty() for _ in range(115))  # ~2.3 s at dt 0.02
+    env.reset(seed=2)
+    _point(env, 10.0)
+    settled = sum(env._no_go_zone_penalty() for _ in range(115, 1150))  # the rest of a beat
+
+    assert passing < 0.1 * settled
+    assert env.no_go_occupancy > 0.9  # sitting there saturates the charge
+
+
+def test_occupancy_does_not_reset_by_stepping_outside_briefly() -> None:
+    """A step counter could be gamed by dipping past the boundary; a lag cannot."""
+    env = _no_go_env(tau=4.0)
+    env.reset(seed=3)
+    _point(env, 10.0)
+    for _ in range(200):
+        env._no_go_zone_penalty()
+    inside = env.no_go_occupancy
+
+    _point(env, 50.0)  # pop outside for a tenth of a second
+    for _ in range(5):
+        env._no_go_zone_penalty()
+    _point(env, 10.0)
+    assert env.no_go_occupancy > 0.95 * inside
+
+
+def test_occupancy_clears_between_episodes() -> None:
+    env = _no_go_env(tau=4.0)
+    env.reset(seed=4)
+    _point(env, 0.0)
+    for _ in range(300):
+        env._no_go_zone_penalty()
+    assert env.no_go_occupancy > 0.5
+    env.reset(seed=5)
+    assert env.no_go_occupancy == 0.0

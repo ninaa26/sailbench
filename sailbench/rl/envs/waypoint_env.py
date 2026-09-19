@@ -49,6 +49,12 @@ class WaypointEnvConfig:
     stagnation_u_threshold: float = 0.35
     no_go_zone_penalty: float = 0.0
     no_go_zone_half_angle_deg: float = 45.0
+    # Time constant for how long the boat has been sitting inside the no-go zone.
+    # 0 charges the penalty on contact, which is the previous behaviour and which
+    # punishes a tack -- a tack has to pass through the zone. Above 0 the charge
+    # follows a lagged occupancy instead, so passing through is nearly free and
+    # living there is not. 4 s: a tack is inside for about 2.3 s.
+    no_go_occupancy_tau_s: float = 0.0
     jibe_penalty: float = 0.0
     jibe_threshold_deg: float = 150.0
     surge_speed_bonus: float = 0.0
@@ -81,6 +87,7 @@ class WaypointEnv(gym.Env[NDArray[np.float32], NDArray[np.float64]]):  # type: i
         self.prev_distance = 0.0
         self.prev_action = np.zeros(2, dtype=np.float64)
         self.last_action = np.zeros(2, dtype=np.float64)
+        self.no_go_occupancy = 0.0
 
     def reset(
         self,
@@ -97,6 +104,7 @@ class WaypointEnv(gym.Env[NDArray[np.float32], NDArray[np.float64]]):  # type: i
         self.t = 0.0
         self.prev_action = np.zeros(2, dtype=np.float64)
         self.last_action = np.zeros(2, dtype=np.float64)
+        self.no_go_occupancy = 0.0
 
         start = self._sample_start()
         self.state = start
@@ -240,9 +248,26 @@ class WaypointEnv(gym.Env[NDArray[np.float32], NDArray[np.float64]]):  # type: i
         return w * deficit
 
     def _no_go_zone_penalty(self) -> float:
+        """Charge for making way inside the no-go zone, once the boat has settled there.
+
+        This is a task constraint standing in for physics the simulator does not
+        have. Flingo holds 22 degrees true and drives at 1.46 m/s there; a real
+        boat of her type stops somewhere between 30 and 45. A policy trained
+        against the simulator as it stands learns to pinch -- 41% of its steps
+        inside 25 degrees, at 62% of the boat speed it could have had -- and that
+        habit does not survive contact with water. Raising the weight is not a
+        fix for the physics and is not claimed to be one; see the note in
+        configs/flingo_rl.yaml.
+
+        The charge follows a lagged occupancy rather than mere contact, because a
+        tack has to pass through the zone: penalising contact prices the manoeuvre
+        the beat is made of, and the policy stops tacking instead of starting to
+        foot. Sweeping through at 30 deg/s spends about 2.3 s inside, which at a
+        4 s time constant reaches roughly 0.44 of the full rate and then decays.
+        Sitting there drives it to 1. The lag also cannot be reset by dipping a
+        degree outside the boundary and coming back, which a step counter could.
+        """
         w = float(self.cfg.no_go_zone_penalty)
-        if w <= 0.0:
-            return 0.0
         cos_threshold = math.cos(math.radians(float(self.cfg.no_go_zone_half_angle_deg)))
         wind_dir_deg = float(self.hub.sail_cfg.get("wind_dir_deg", 90.0))
         wind_dir_rad = math.radians(wind_dir_deg)
@@ -252,7 +277,17 @@ class WaypointEnv(gym.Env[NDArray[np.float32], NDArray[np.float64]]):  # type: i
         wind_boat_x = c * math.cos(wind_dir_rad) + s * math.sin(wind_dir_rad)
         # penetration: 0 at zone boundary, positive deeper in the zone
         penetration = max(0.0, -wind_boat_x - cos_threshold)
-        return w * penetration
+
+        tau = float(self.cfg.no_go_occupancy_tau_s)
+        if tau > 0.0:
+            inside = 1.0 if penetration > 0.0 else 0.0
+            self.no_go_occupancy += (inside - self.no_go_occupancy) * min(self.dt / tau, 1.0)
+        else:
+            self.no_go_occupancy = 1.0
+
+        if w <= 0.0:
+            return 0.0
+        return w * penetration * self.no_go_occupancy
 
     def _jibe_penalty(self) -> float:
         w = float(self.cfg.jibe_penalty)
@@ -412,6 +447,7 @@ class WaypointEnv(gym.Env[NDArray[np.float32], NDArray[np.float64]]):  # type: i
             "reward_dist": dist_term,
             "penalty_stagnation": stagnation_penalty_term,
             "penalty_no_go_zone": no_go_zone_penalty_term,
+            "no_go_occupancy": self.no_go_occupancy,
             "penalty_jibe": jibe_penalty_term,
             "reward_surge_speed": surge_speed_bonus_term,
             "penalty_time": time_penalty_term,
