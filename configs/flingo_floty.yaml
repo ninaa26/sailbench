@@ -55,6 +55,18 @@ hull:
   L: 1.372     # [m] length of waterline, at the floating waterline for 27 kg
   B: 0.492     # [m] beam at waterline
   T: 0.110     # [m] hull draft (canoe body, not to keel tip)
+  # Measured stations for added mass, sim frame (+x forward of the CG). Draft is
+  # the local submerged depth. Integrating rho*pi*T^2 over these gives sway added
+  # mass 26.5 kg against a 27.0 kg boat, and yaw added inertia 1.83 kg.m2
+  # against 3.4.
+  sections:
+    - {x_m:  0.693, draft_m: 0.031}
+    - {x_m:  0.513, draft_m: 0.067}
+    - {x_m:  0.337, draft_m: 0.092}
+    - {x_m:  0.157, draft_m: 0.108}
+    - {x_m: -0.019, draft_m: 0.108}
+    - {x_m: -0.199, draft_m: 0.093}
+    - {x_m: -0.375, draft_m: 0.062}
 
 keel:
   # Thicker section (10%) gives better L/D at boat Re than NACA0006 (6%)

@@ -99,6 +99,15 @@ class SailboatHub:
         self.m = self.boat_cfg.get("mass", self.boat_cfg.get("m", 27.0))
         self.iz = self.boat_cfg.get("inertia_z", self.boat_cfg.get("Iz", 25.0))
 
+        # The water the hull drags along with it. Resolved once, from the hull's
+        # own geometry. A hull with no measured stations reports zero, and the
+        # equations below reduce exactly to the rigid-body ones.
+        self.hull_cfg.setdefault("mass", self.m)
+        added: tuple[float, float, float] = (
+            self.hull.added_mass() if hasattr(self.hull, "added_mass") else (0.0, 0.0, 0.0)
+        )
+        self.a_surge, self.a_sway, self.a_yaw = added
+
         # TODO: Change starting position and heading from config
         self.tf.add_frame(
             name="boat",
@@ -162,10 +171,27 @@ class SailboatHub:
             c, s = arr[2], arr[3]  # Heading cosine, sine
             u, v, r = arr[4], arr[5], arr[6]
 
-            # --- body-frame accelerations ---
-            du = fx / self.m + r * v
-            dv = fy / self.m - r * u
-            dr = mz / self.iz
+            # --- body-frame accelerations, rigid body plus added mass ---
+            # Fossen's 3-DOF form. Added mass appears three times and each one
+            # matters: in the inertia that resists acceleration, in the Coriolis
+            # terms (a turning boat carries its entrained water round with it),
+            # and in the Munk moment.
+            #
+            # The Munk moment, -(A22 - A11) u v, is destabilising: a hull moving
+            # at a drift angle is pushed to increase it. That is a real property
+            # of a slender body in a fluid, and leaving it out gives the hull a
+            # directional stability it does not have, which is exactly the sort
+            # of thing a policy learns to lean on.
+            #
+            # With zero added mass these reduce to the rigid-body equations
+            # exactly, which is the opt-in guarantee.
+            m_surge = self.m + self.a_surge
+            m_sway = self.m + self.a_sway
+            i_yaw = self.iz + self.a_yaw
+
+            du = (fx + m_sway * v * r) / m_surge
+            dv = (fy - m_surge * u * r) / m_sway
+            dr = (mz - (self.a_sway - self.a_surge) * u * v) / i_yaw
 
             # --- world-frame position rates (transform body velocity to world) ---
             dx = u * c - v * s
@@ -268,7 +294,6 @@ class SailboatHub:
         The sail free-spins with apparent wind, constrained by sheet limit.
         Luffing/depower remains in the aerodynamic sail model.
         """
-
         # Same apparent wind the sail model sees, so the two cannot disagree.
         apparent_wind_boat = utils.apparent_wind_boat(
             state,
