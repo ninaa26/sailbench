@@ -1,6 +1,7 @@
 """`sail.model_type` selects the sail model, and every shipped config names one that exists."""
 
 import math
+import warnings
 from pathlib import Path
 from typing import Any
 
@@ -10,7 +11,12 @@ import yaml
 from sailbench.foils.basic_sail import BasicSail
 from sailbench.foils.hybrid_sail import HybridSail
 from sailbench.foils.orc_sail import ORCMainSail, ORCWithJibSail
-from sailbench.foils.sail_factory import DEFAULT_SAIL_MODEL, SAIL_MODELS, build_sail
+from sailbench.foils.sail_factory import (
+    DEFAULT_SAIL_MODEL,
+    SAIL_MODELS,
+    UnreadSailKeyWarning,
+    build_sail,
+)
 from sailbench.models.model import State
 from sailbench.sim.sailboat_hub import CONFIG_PATH, SailboatHub
 from sailbench.solvers.rk4 import rk4_step
@@ -64,6 +70,47 @@ class TestModelSelection:
         """A typo must not silently fall back to the default and sail a different boat."""
         with pytest.raises(ValueError, match="orc_main"):
             build_sail(sail_block(model_type="orc"))
+
+
+class TestUnreadKeysAreReported:
+    """A key the selected model cannot read is a number someone believes is in effect."""
+
+    def test_orc_model_reports_section_and_analytic_keys(self) -> None:
+        """Point an existing config at the ORC envelope and nine keys stop being read."""
+        cfg = dict(yaml.safe_load(Path(CONFIG_PATH, "basic_sailbot.yaml").read_text())["sail"])
+        cfg["model_type"] = "orc_main"
+        with pytest.warns(UnreadSailKeyWarning, match="airfoil_name") as record:
+            build_sail(cfg)
+        message = str(record[0].message)
+        for key in ("CL_max", "CD0", "CD1", "alpha_min", "alpha_max", "res", "luff_deg", "luff_ramp_deg"):
+            assert key in message, key
+
+    def test_section_model_reports_orc_keys(self) -> None:
+        """And the mirror: heff and friends do nothing to a section polar."""
+        cfg = dict(yaml.safe_load(Path(CONFIG_PATH, "flingo_full.yaml").read_text())["sail"])
+        cfg["model_type"] = "basic"
+        with pytest.warns(UnreadSailKeyWarning, match="heff"):
+            build_sail(cfg)
+
+    def test_jib_area_is_not_reported_against_the_orc_models(self) -> None:
+        """Both ORC models read jib_area now, so neither should call it unread."""
+        for model_type in ("orc_main", "orc_w_jib"):
+            with warnings.catch_warnings():
+                warnings.simplefilter("error", UnreadSailKeyWarning)
+                build_sail(sail_block(model_type=model_type, jib_area=0.4, heff=2.0))
+
+    @pytest.mark.parametrize("config_file", BOAT_CONFIGS)
+    def test_no_shipped_config_warns(self, config_file: str) -> None:
+        """The report is worth nothing if it fires on every boat in the tree.
+
+        This is why the check is only across the ORC boundary. Every config
+        here deliberately keeps the section and analytic parameters side by
+        side so that switching between those two is a one-line edit, and
+        reporting that habit would bury the case that matters.
+        """
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", UnreadSailKeyWarning)
+            SailboatHub(config_file)
 
 
 class TestShippedConfigs:
