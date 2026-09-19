@@ -54,11 +54,12 @@ class BasicRudder(Foil):
         aoa_limit_deg = float(self.p.get("aoa_limit_deg", 25.0))
         aoa = float(np.clip(aoa, -np.radians(aoa_limit_deg), np.radians(aoa_limit_deg)))
         cl, cd = self.cl_cd(aoa, re=self.get_reynolds())
+        cl, cd = self.apply_finite_span(cl, cd)
         cl = float(np.clip(cl, -float(self.p.get("cl_max", 1.0)), float(self.p.get("cl_max", 1.0))))
         cd = float(np.clip(cd, 0.0, float(self.p.get("cd_max", 1.2))))
 
         # Dynamic pressure and net foil forces.
-        rho = float(self.p.get("water_density", 1000.0))  # kg/m^3
+        rho = float(self.p.get("rho_water", 1000.0))  # kg/m^3
         q = 0.5 * rho * speed**2
         area = float(self.p.get("area", 1.0))  # m^2
         effectiveness = float(self.p.get("effectiveness", 0.25))

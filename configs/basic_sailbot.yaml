@@ -1,21 +1,21 @@
 simulation:
   dt: 0.02  # [s] solver step
 
+environment:
+  # Fluid densities. The hub injects these into every component, so this is the
+  # only place either number is set; components no longer each default their own.
+  rho_water: 1000.0  # [kg/m³]  fresh water
+  rho_air: 1.225     # [kg/m³]  sea-level air
+
 boat:
   mass: 27.0       # [kg]
   inertia_z: 10.0  # [kg·m²] yaw inertia
 
 hull:
-  rho_water: 1000
   x_pos: 0.0  # [m]     x position relative to boat center of rotation
   y_pos: 0.0  # [m]     y position relative to boat center of rotation
-  xu1:      20.0         # [N·s/m]    surge
-  yv1:      40.0         # [N·s/m]    sway
-  nr1:      15.0         # [N·m·s/rad] yaw
-  xu2:      5.0          # [N·s²/m²]
-  yv2:      80.0
-  nr2:      15.0
   L: 1.5 # [m] length
+  c_wave: 0.01   # residuary (wave-making) resistance; caps speed near 0.4*sqrt(g*L)
   B: 0.60 # [m] beam
   T: 0.05 # [m] draft
 
@@ -48,10 +48,6 @@ sail:
   alpha_min: -179 # Minimum and maximum angle of attack in degrees
   alpha_max: 179
   res: [1e5]   # Reynolds number
-  # Hybrid aerodynamic model (CL_max, CD0, CD1)
-  CL_max: 1
-  CD0: 0.1
-  CD1: 0.8
   
 rudder:
   airfoil_name: NACA0012
@@ -62,7 +58,6 @@ rudder:
   area: 0.3    # [m²]    planform area (fin + bulb strut)
   x_pos: -0.3  # [m]     x position relative to boat center of rotation
   y_pos: 0.0  # [m]     y position relative to boat center of rotation
-  moment_coeff: 3.5
   effectiveness: 0.2  # scale rudder force to avoid over-steer
   aoa_limit_deg: 35.0  # clamp effective AoA for stalled rudder behavior
   cl_max: 1.0

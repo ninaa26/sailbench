@@ -39,16 +39,31 @@ def keel(config: dict[str, Any]) -> BasicKeel:
 
 @pytest.fixture
 def sail(config: dict[str, Any]) -> HybridSail:
-    """Create a hybrid sail with fixed wind."""
-    sail_cfg = config["sail"]
+    """Create a hybrid sail with fixed wind.
+
+    CL_max/CD0/CD1 are stated here rather than read from the boat config: the
+    simulator never instantiates HybridSail, so carrying its coefficients in
+    every boat config made them look like live tuning knobs when only this
+    fixture read them.
+    """
+    sail_cfg = dict(config["sail"])
+    sail_cfg.update({"CL_max": 1.0, "CD0": 0.1, "CD1": 0.8})
     return HybridSail(sail_cfg)
-    
+
+
 @pytest.fixture
 def rudder(config: dict[str, Any]) -> BasicRudder:
     """Generate a BasicRudder instance for testing."""
     rudder_cfg = config["rudder"]
     return BasicRudder(rudder_cfg)
 @pytest.fixture
-def hull(config: dict[str,Any]) -> LinearHydroModel:
-    hull_cfg = config["hull"]
+def hull(config: dict[str, Any]) -> LinearHydroModel:
+    """Create a linear hydro hull model.
+
+    Same reasoning as the sail fixture: SailboatHub builds a BasicHullModel, so
+    the xu1/yv1/nr1 damping coefficients are exercised only from here.
+    """
+    hull_cfg = dict(config["hull"])
+    hull_cfg.update({"xu1": 20.0, "yv1": 40.0, "nr1": 15.0})
     return LinearHydroModel(hull_cfg)
+

@@ -54,21 +54,42 @@ class BasicSail(Foil):
         if speed < 1e-6:
             return np.array([0.0, 0.0], dtype=float)
 
-        # alpha is angle from sail +x (chord) to local apparent-wind direction.
-        aoa_rad = float(np.arctan2(apparent_wind_sail[1], apparent_wind_sail[0]))
+        # Two different angles, which used to be one variable.
+        #
+        # `flow_rad` is the direction the air travels in the sail frame. It is
+        # what the fluid frame is built from, and it is correct below.
+        #
+        # `aoa_rad` is the angle of attack, and it is measured from the chord to
+        # the sail's motion *through* the air, which is opposite the way the air
+        # travels -- the same convention BasicKeel uses, where the angle of attack
+        # is the track angle while the fluid frame points along the flow.
+        #
+        # Using the flow direction for both meant the coefficients were looked up
+        # roughly 180 degrees out. Close-hauled the sail was evaluated near alpha
+        # = 150 deg, where NeuralFoil is far outside its valid range and returns
+        # CL = -0.94: the sail made its *largest* lift on a broad reach and
+        # negative lift upwind, with the lift curve effectively running backwards.
+        flow_rad = float(np.arctan2(apparent_wind_sail[1], apparent_wind_sail[0]))
+        aoa_rad = float(np.arctan2(-apparent_wind_sail[1], -apparent_wind_sail[0]))
 
         cl, cd = self.cl_cd(aoa_rad, re=self.get_reynolds())
+        # A rig sheds tip vortices like any other foil. Skipped when the sail
+        # has no span configured, which is the case until the rig is measured.
+        cl, cd = self.apply_finite_span(cl, cd)
 
         # Luffing model:
         # - near centerline apparent flow, sail flaps and loses lift authority
         # - use a smooth ramp to avoid discontinuous force jumps
+        # This was dead code: the old alpha sat near +-180 deg at every wind
+        # angle, always far above luff_deg, so cl_scale was 1.0 on every step.
+        # With a real angle of attack the ramp finally engages.
         aoa_deg_abs = float(np.degrees(np.abs(aoa_rad)))
         luff_deg = float(self.p.get("luff_deg", 7.5))
         luff_ramp_deg = max(float(self.p.get("luff_ramp_deg", 4.0)), 1e-6)
         cl_scale = float(np.clip((aoa_deg_abs - luff_deg) / luff_ramp_deg, 0.0, 1.0))
         cl *= cl_scale
 
-        rho = float(self.p.get("air_density", 1.225))  # kg/m³
+        rho = float(self.p.get("rho_air", 1.225))  # kg/m³
         q = 0.5 * rho * speed**2
         s = float(self.p.get("area", 1.0))  # m²
         lift = cl * q * s
@@ -77,8 +98,8 @@ class BasicSail(Foil):
         # Force in fluid frame (x = wind direction; drag opposes motion => +drag along flow)
         f_fluid = np.array([drag, lift], dtype=float)
 
-        # Rotate fluid → sail
-        c, s = np.cos(aoa_rad), np.sin(aoa_rad)
+        # Rotate fluid → sail, about the flow direction (not the angle of attack)
+        c, s = np.cos(flow_rad), np.sin(flow_rad)
         r_fluid_to_sail = np.array([[c, -s], [s, c]], dtype=float)
 
         f_sail = r_fluid_to_sail @ f_fluid

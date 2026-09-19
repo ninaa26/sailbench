@@ -1,0 +1,80 @@
+# Measured from "Full Boat Assembly Final.SLDASM" (95 components) in SOLIDWORKS
+# Design 2026, via the Amazon AppStream session, 2026-09-16.
+# Raw SolidWorks output is MMGS (grams, mm); SI conversions are shown alongside.
+#
+# READ THE CAVEATS AT THE BOTTOM BEFORE PUTTING ANY OF THIS IN A CONFIG.
+
+cad_frame:
+  # Established, not assumed:
+  #  - Top Plane is horizontal and the mast is normal to it  -> Y is vertical
+  #  - keel CG sits at Z = -0.48 mm, i.e. on centreline      -> Z is transverse
+  #  - Lzz ~= Lxx + Lyy (12.53 vs 13.97) means mass is nearly planar in XY,
+  #    so Z is the thin direction (beam)                     -> X is longitudinal
+  #  - rudder CG is at X = +396 mm, keel at X = -13 mm       -> +X points AFT
+  x: "longitudinal, +X = aft (opposite the sim's +x forward)"
+  y: "vertical, +Y = up"
+  z: "transverse"
+  sim_mapping: "sim_x = -(CAD_X - CAD_X_cg) / 1000"
+
+total:
+  source: "Mass Properties, whole assembly, default coordinate system"
+  mass_g: 29781.56
+  mass_kg: 29.782
+  volume_mm3: 29513291.81      # solid volume of all parts, NOT hull displacement
+  surface_area_mm2: 14497862.98  # all parts, NOT wetted surface
+  cg_mm: [90.97, 65.54, 10.74]
+  inertia_at_cg_g_mm2:
+    Lxx: 6576593955.23
+    Lyy: 7390744508.38
+    Lzz: 12527580319.7
+    Lxy: -563136319.93
+    Lxz: 219021343.56
+    Lyz: -57292915.14
+  inertia_at_cg_kg_m2:
+    roll_Lxx: 6.577
+    yaw_Lyy: 7.391     # <-- this is boat.inertia_z for the sim
+    pitch_Lzz: 12.528
+  principal_at_cg_kg_m2: [6.281, 7.678, 12.536]
+
+keel_and_bulb_assembly:
+  mass_g: 2443.91
+  volume_mm3: 2443910.99       # -> density exactly 1000 kg/m^3: NO MATERIAL SET
+  surface_area_mm2: 473419.16  # both faces + bulb, NOT planform area
+  cg_mm: [-13.31, -566.65, -0.48]
+
+rudder_assembly:
+  mass_g: 565.1
+  volume_mm3: 565104.53        # -> density exactly 1000 kg/m^3: NO MATERIAL SET
+  surface_area_mm2: 438324.92
+  cg_mm: [396.38, -412.03, -15.99]
+
+derived_for_sim:
+  # Positions are CG positions relative to the whole-boat CG, converted into the
+  # sim frame (+x forward). These are centres of MASS, not centres of lateral
+  # resistance -- see caveats.
+  keel_x_pos_m: 0.104     # config flingo_floty says 0.0; real_boat.yaml says 0.1
+  rudder_x_pos_m: -0.305  # config says -0.46
+  keel_below_cg_m: 0.632
+  rudder_below_cg_m: 0.478
+  keel_rudder_separation_m: 0.410
+  boat_inertia_z_kg_m2: 7.391   # config says 1.0; the audit estimate was 3.7
+
+caveats:
+  - "Keel and rudder both compute to exactly 1000 kg/m^3, i.e. SolidWorks is
+     using a default density because no material is assigned. The 2.44 kg keel
+     and 0.57 kg rudder are therefore fiction, and so is part of the 29.78 kg
+     total. A lead bulb alone would add several kg."
+  - "Three more components (last gear, 2305-0025-0024, 2664N343_Metal Gear) were
+     explicitly reported by SolidWorks as having no valid density."
+  - "Yaw inertia is the value least damaged by the density problem: the keel
+     bulb sits close to the yaw axis (~104 mm off), so fixing its density moves
+     Lyy far less than it moves roll and pitch."
+  - "The assembly opens with a mate error: Coincident8 is unsatisfied with a
+     separation of 10.375 mm, so at least one component is not where the design
+     intends. The rudder CG sits 16 mm off centreline (Z = -15.99), which may be
+     this same error."
+  - "CG positions are not centres of lateral resistance. For the keel the bulb
+     pulls the CG down and shifts it fore/aft relative to the fin's area
+     centroid. Treat keel_x_pos/rudder_x_pos as good to a few cm, no better."
+  - "Nothing here establishes a waterline, so submerged spans, waterline length,
+     draft, displacement and wetted area are all still unmeasured."
