@@ -54,6 +54,8 @@ class BasicRudder(Foil):
         aoa_limit_deg = float(self.p.get("aoa_limit_deg", 25.0))
         aoa = float(np.clip(aoa, -np.radians(aoa_limit_deg), np.radians(aoa_limit_deg)))
         cl, cd = self.cl_cd(aoa, re=self.get_reynolds())
+        # 2-D section -> finite span. A no-op unless the config states a span.
+        cl, cd = self.apply_finite_span(cl, cd)
         cl = float(np.clip(cl, -float(self.p.get("cl_max", 1.0)), float(self.p.get("cl_max", 1.0))))
         cd = float(np.clip(cd, 0.0, float(self.p.get("cd_max", 1.2))))
 

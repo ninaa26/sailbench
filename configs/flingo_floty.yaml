@@ -71,6 +71,10 @@ keel:
   # end plate. BasicKeel is 2-D and charges no induced drag. Recorded here so
   # the numbers are not lost.
 
+  # Measured: hull underside to tip. Geometric AR 4.00; with the hull acting as
+  # an end plate the effective AR is 8.0, so this is a deep, efficient fin.
+  span: 0.700            # [m] submerged span below the hull
+  end_plate_factor: 2.0  # root sealed against the hull, so the flow mirrors
 sail:
   # ORC VPP coefficient envelope against apparent wind angle. Flingo is a sloop,
   # not the single-sail rig the earlier notes assumed: main 1.196 m² (luff 2.326,
@@ -149,6 +153,10 @@ rudder:
   center_tau_s: 0.0
   max_rate_deg_s: 120.0  # servo slew limit
 
+  # Blade only. The CAD body spans 0.578 m but about 0.10 m of that is stock
+  # above the blade, which is not a lifting surface. Geometric AR 4.95.
+  span: 0.478            # [m] blade span
+  end_plate_factor: 1.0  # surface-piercing, no image
 windage:
   # Above-water drag: mast, rigging, topsides and deck gear. ORC treats this
   # separately from the sail coefficients, and leaving it out was measurable:
