@@ -18,7 +18,7 @@ class BasicHullModel(Model):
         l = float(self.p["L"])
         b = float(self.p["B"])
         t = float(self.p["T"])
-        rho = float(self.p.get("rho", 1000.0))
+        rho = float(self.p.get("rho_water", 1000.0))
 
         s = 1.7 * l * (b + t)
         aside = l * t

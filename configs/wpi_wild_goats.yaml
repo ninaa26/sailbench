@@ -34,6 +34,14 @@
 simulation:
   dt: 0.02  # [s] solver step
 
+environment:
+  # Fluid properties, stated once. The hub layers these under every component,
+  # so a component that needs one gets it without the config having to know
+  # which key that component reads. A value set in a component's own section
+  # still wins.
+  rho_water: 1000.0  # [kg/m3] fresh water
+  rho_air: 1.225     # [kg/m3] sea-level air
+
 boat:
   mass: 25.0      # [kg] [E] "two-meter ... ~50 lb" (23 kg) reported for the
                   #      WPI boat; +2 kg for the 2025-26 lengthened keel and
@@ -41,7 +49,6 @@ boat:
   inertia_z: 6.5  # [kg·m²] [E] 25 kg with yaw radius of gyration ≈ 0.25·LOA.
 
 hull:
-  rho: 1000.0  # [kg/m³] fresh water — Cayuga Lake
   x_pos: 0.0   # [m]     x position relative to boat center of rotation
   y_pos: 0.0   # [m]     y position relative to boat center of rotation
   L: 1.85      # [m] waterline length [E] — LOA is 2.00 m [M], the SailBot
@@ -79,7 +86,6 @@ sail:
   area: 1.50        # [m²] [E] ~3.0 m rig height reported ("10-foot wing-sail"),
                     #      wing span ~2.75 m x ~0.55 m mean chord. Trim tab
                     #      adds a further ~0.20 m² [E], not included here.
-  air_density: 1.225  # [kg/m³] sea-level air
   wind_speed: 4.0   # [m/s] [M] regatta week ran 3-8 kt southerly; 4 m/s ~ 8 kt
   wind_dir_deg: 90  # direction wind blows TO (deg, 0=east, 90=north)
   x_pos: 0.05       # [m] [E] mast just forward of the keel's center of effort

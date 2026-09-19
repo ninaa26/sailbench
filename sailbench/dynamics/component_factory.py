@@ -73,7 +73,7 @@ OPTIONAL_COMPONENTS: dict[str, ModelTable] = {
 }
 
 # Sections the hub reads itself rather than building a part from.
-HUB_SECTIONS = frozenset({"simulation", "boat"})
+HUB_SECTIONS = frozenset({"simulation", "boat", "environment"})
 
 
 def build_components(cfg: dict[str, Any]) -> dict[str, Model]:

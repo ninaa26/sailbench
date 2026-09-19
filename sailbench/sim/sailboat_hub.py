@@ -7,7 +7,7 @@ import numpy as np
 import yaml
 
 import sailbench.utils.coordinate_helper as utils
-from sailbench.dynamics.component_factory import build_components
+from sailbench.dynamics.component_factory import OPTIONAL_COMPONENTS, REQUIRED_COMPONENTS, build_components
 from sailbench.models.model import Model, State
 from sailbench.tf.tf_tree import TFTree2D, Transform2D
 
@@ -29,6 +29,10 @@ class SailboatHub:
         self.keel_cfg = cfg["keel"]
         self.rudder_cfg = cfg["rudder"]
         self.sail_cfg = cfg["sail"]
+        self.environment_cfg = cfg.get("environment", {})
+        # Keys each component stated for itself, captured before anything is
+        # layered in, so an `environment` value never overwrites a deliberate one.
+        self._component_own_keys = {id(section): set(section) for section in self._component_sections()}
 
         self.tf = TFTree2D()
         # Last computed sail force in boat frame (Fx, Fy) for diagnostics / UI.
@@ -43,8 +47,42 @@ class SailboatHub:
 
         self.boat_factory()
 
+    def _apply_environment(self) -> None:
+        """Offer the shared `environment` values to every component as a default.
+
+        Components each defaulted their own fluid density under their own key
+        name, and no config set any of them, so every component silently fell
+        back and the number written in the config did nothing. Three of the
+        configs here said `hull: rho_water:` while the hull read `rho`.
+
+        The hub layers the `environment` block underneath each component's own
+        parameters rather than assigning named keys, so it stays ignorant of
+        which component wants which quantity: a foil asks for `rho_air`, a hull
+        for `rho_water`, and a component needing neither sees no change. A value
+        set in the component's own section still wins.
+        """
+        for cfg in self._component_sections():
+            own = self._component_own_keys.get(id(cfg), set())
+            for key, value in self.environment_cfg.items():
+                # setdefault would be wrong: after the first pass an injected
+                # value is indistinguishable from one the component stated, so a
+                # later change to `environment` would silently not apply.
+                if key not in own:
+                    cfg[key] = value
+
+    def _component_sections(self) -> list[dict]:
+        """Every config section a part is built from, required or optional.
+
+        Taken from the factory rather than listed here, so a part added there
+        (a jib, ballast, anything later) gets the environment too.
+        """
+        names = [*REQUIRED_COMPONENTS, *OPTIONAL_COMPONENTS]
+        return [self.cfg[name] for name in names if isinstance(self.cfg.get(name), dict)]
+
     def boat_factory(self) -> None:
         """Instantiate boat components from configs."""
+        self._apply_environment()
+
         # One part per config section, each the model its model_type names; see
         # component_factory for the choices and for which sections are optional.
         # The four every boat has are also kept by name, because the hub drives

@@ -3,12 +3,19 @@
 simulation:
   dt: 0.02  # [s] solver step
 
+environment:
+  # Fluid properties, stated once. The hub layers these under every component,
+  # so a component that needs one gets it without the config having to know
+  # which key that component reads. A value set in a component's own section
+  # still wins.
+  rho_water: 1000.0  # [kg/m3] fresh water
+  rho_air: 1.225     # [kg/m3] sea-level air
+
 boat:
   mass: 27.0       # [kg]
   inertia_z: 10.0  # [kg·m²] yaw inertia
 
 hull:
-  rho_water: 1000
   x_pos: 0.0  # [m]     x position relative to boat center of rotation
   y_pos: 0.0  # [m]     y position relative to boat center of rotation
   xu1:      20.0         # [N·s/m]    surge

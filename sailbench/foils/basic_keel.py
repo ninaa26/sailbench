@@ -44,7 +44,7 @@ class BasicKeel(Foil):
         # get lift and drag coefficients
         cl, cd = self.cl_cd(np.radians(aoa), re=self.get_reynolds())
         # compute dynamic pressure
-        rho = self.p.get("water_density", 1000.0)  # kg/m^3
+        rho = self.p.get("rho_water", 1000.0)  # kg/m^3
         v = utils.get_velocity_magnitude(state)
         q = 0.5 * rho * v**2
         # compute forces

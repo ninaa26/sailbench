@@ -58,7 +58,7 @@ class BasicRudder(Foil):
         cd = float(np.clip(cd, 0.0, float(self.p.get("cd_max", 1.2))))
 
         # Dynamic pressure and net foil forces.
-        rho = float(self.p.get("water_density", 1000.0))  # kg/m^3
+        rho = float(self.p.get("rho_water", 1000.0))  # kg/m^3
         q = 0.5 * rho * speed**2
         area = float(self.p.get("area", 1.0))  # m^2
         effectiveness = float(self.p.get("effectiveness", 0.25))
