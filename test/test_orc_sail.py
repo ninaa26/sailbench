@@ -111,7 +111,7 @@ class TestEnvelope:
         assert sail.envelope(-45.0) == sail.envelope(45.0)
 
     def test_stays_within_the_table_beyond_its_ends(self) -> None:
-        """Past 180 degrees the lookup clamps rather than extrapolating."""
+        """Past 180 degrees the lookup clamps instead of extrapolating."""
         sail = make_sail()
         assert sail.envelope(250.0) == sail.envelope(180.0)
 
@@ -190,10 +190,10 @@ class TestForces:
 
 
 class TestRightingMomentDepower:
-    """ORC chooses `flat` against a righting-moment limit.
+    """ORC picks `flat` against a righting-moment limit.
 
-    Without it the rig sails at permanent full power, which a 3-DOF hull with no
-    heel degree of freedom never pays for.
+    Without it the rig sails at full power all the time, which a 3-DOF hull
+    with no heel never pays for.
     """
 
     ARM = 1.47  # CE above the centre of lateral resistance
@@ -249,10 +249,10 @@ class TestRightingMomentDepower:
     def test_downwind_constraint_can_be_infeasible(self) -> None:
         """Deep downwind, heel is drag-dominated and easing cannot fix it.
 
-        Past 90 degrees cos(beta) is negative, so more lift *reduces* heel, and
-        cd0*sin(beta) sets a floor that trim cannot touch. ORC reefs for this.
-        The requirement here is that the solve returns the least-heeling trim
-        available rather than easing further and making things worse.
+        Past 90 degrees cos(beta) is negative, so more lift reduces heel, and
+        cd0*sin(beta) sets a floor trim cannot touch. ORC reefs for this. What
+        matters here is that the solve returns the least-heeling trim it has
+        instead of easing further and making things worse.
         """
         free = self.heeling_moment(make_sail(), twa_deg=150.0, trim_deg=80.0)
         capped = self.heeling_moment(self.limited(10.0), twa_deg=150.0, trim_deg=80.0)
@@ -275,7 +275,7 @@ class TestRightingMomentDepower:
 
     @pytest.mark.parametrize(("limit", "arm"), [(25.0, None), (None, 1.47)])
     def test_both_keys_required(self, limit: float | None, arm: float | None) -> None:
-        """Half a constraint is a configuration error, not a silent no-op."""
+        """Half a constraint is a config error, not a silent no-op."""
         params: dict[str, float] = {"area": AREA, "heff": HEFF}
         if limit is not None:
             params["max_heeling_moment_nm"] = limit
@@ -291,10 +291,9 @@ class TestRigSelection:
     def test_mainsail_model_strikes_the_jib(self) -> None:
         """`orc_main` on a sloop config is that boat with the jib lowered.
 
-        The mainsail keeps its own area; the jib's share leaves the rig, so the
-        reference area the coefficients are normalised by shrinks with it.
-        Handing the mainsail the combined area instead would sail a rig the
-        boat does not have.
+        The mainsail keeps its area and the jib's share leaves the rig, so the
+        reference area drops with it. Giving the mainsail the combined area
+        would sail a rig the boat does not have.
         """
         struck = make_sail(jib_area=JIB)
         assert struck.main_area == pytest.approx(AREA - JIB)
@@ -302,7 +301,7 @@ class TestRigSelection:
         assert make_sloop().main_area == pytest.approx(struck.main_area)
 
     def test_striking_the_jib_is_the_only_difference(self) -> None:
-        """Same config, same mainsail: only the jib and its area are gone."""
+        """Same config, same mainsail. Only the jib and its area are gone."""
         struck, whole = make_sail(jib_area=JIB), make_sloop()
         assert struck.heff == whole.heff
         assert [t for t, _ in struck.sails] == [MAIN_TABLE]
@@ -321,7 +320,7 @@ class TestRigSelection:
             make_sail(jib_area=AREA)
 
     def test_less_drive_under_main_alone(self) -> None:
-        """Dropping the jib drops sail area, so the boat is slower where the jib drew."""
+        """Less sail area, so less drive where the jib was drawing."""
         psi = beat(45.0)
         args = (make_state(psi=psi), tree(math.radians(20.0), psi))
         assert make_sail(jib_area=JIB).compute(*args)[0] < make_sloop().compute(*args)[0]
@@ -406,7 +405,7 @@ class TestSloop:
 
     @pytest.mark.parametrize("bad", [2.5, 0.0, -0.1])
     def test_the_mainsail_model_validates_it_too(self, bad: float) -> None:
-        """Now that `orc_main` reads jib_area, it has to check it on the same terms."""
+        """orc_main reads jib_area too, so it checks it on the same terms."""
         with pytest.raises(ValueError, match="jib_area"):
             make_sail(jib_area=bad)
 
@@ -477,7 +476,7 @@ class TestEffectiveHeight:
 
     @pytest.mark.parametrize("bad", ["fancy", "orc"])
     def test_unknown_model_raises(self, bad: str) -> None:
-        """A typo, or the unversioned name, must not silently fall back."""
+        """A typo or the unversioned name must not silently fall back."""
         with pytest.raises(ValueError, match="heff_model"):
             make_sail(heff_model=bad)
 
@@ -485,10 +484,10 @@ class TestEffectiveHeight:
 class TestDownwindTrimAnswers:
     """Running, the sheet has to do something: form drag follows projected area.
 
-    ORC's CD0 is the drag of a correctly trimmed sail. Charged in full whatever
-    the boom does, moving the sheet across its entire range at TWA 160-180 would
-    change the drive force by 0.00 N, leaving a policy no gradient on sail trim
-    there.
+    ORC's CD0 is the drag of a correctly trimmed sail. Charge it in full
+    whatever the boom does and moving the sheet across its whole range at TWA
+    160-180 changes drive by 0.00 N, which leaves a policy no gradient on sail
+    trim there.
     """
 
     def test_beam_and_upwind_are_untouched(self) -> None:
@@ -511,12 +510,12 @@ class TestDownwindTrimAnswers:
             assert sail.form_drag_trim_factor(beta, math.radians(45.0)) == pytest.approx(1.0, abs=past / 90.0)
 
     def test_square_to_the_wind_gets_the_full_table(self) -> None:
-        """The table's drag belongs to the sail square to the flow, not to any one boom.
+        """The table's drag is the sail square to the flow, not any one boom.
 
-        Square to the apparent wind is `alpha = 90 deg`, which is a boom at
-        `beta - 90`. A boom fully eased to 90 degrees is only that trim on a dead
-        run; at 120 degrees apparent it is 30 degrees past square and by the lee,
-        so it is charged less, not the full table.
+        Square to the apparent wind is alpha = 90 deg, i.e. a boom at beta - 90.
+        A boom fully eased to 90 degrees is only that trim on a dead run; at 120
+        degrees apparent it is 30 degrees past square and by the lee, so it gets
+        charged less than the full table.
         """
         sail = make_sloop()
         for beta_deg in (120.0, 150.0, 180.0):
@@ -526,12 +525,12 @@ class TestDownwindTrimAnswers:
         assert over_eased < 0.9
 
     def test_intermediate_sheets_are_not_all_identical(self) -> None:
-        """The regression that hid the bug for a whole training run.
+        """Guard against the normalisation that hid this for a training run.
 
-        `sin^2(alpha)` peaks at 90 degrees, so normalising against the fully-eased
-        boom made every trim between hard in and fully out compute above 1 and
-        clip back to it. At 139.5 degrees apparent, sheet limits of 10 through 80
-        degrees returned byte-identical drive.
+        sin^2(alpha) peaks at 90 degrees, so normalising against the
+        fully-eased boom makes every trim between hard in and fully out compute
+        above 1 and clip back to it. At 139.5 degrees apparent, sheet limits of
+        10 through 80 degrees gave byte-identical drive.
         """
         sail = make_sloop()
         beta = math.radians(139.5)
@@ -545,7 +544,7 @@ class TestDownwindTrimAnswers:
         assert sail.form_drag_trim_factor(math.pi, math.pi) == pytest.approx(0.0, abs=1e-9)
 
     def test_never_exceeds_the_optimum(self) -> None:
-        """Trim can only be worse than the table, never better -- as `flat` cannot exceed 1."""
+        """Trim can only be worse than the table, never better, as with `flat`."""
         sail = make_sloop()
         for beta_deg in np.arange(91.0, 180.1, 1.0):
             for boom_deg in np.arange(0.0, 90.1, 5.0):
@@ -554,14 +553,14 @@ class TestDownwindTrimAnswers:
                 assert 0.0 <= f <= 1.0
 
     def test_drive_rises_monotonically_with_sheet_on_a_run(self) -> None:
-        """The behaviour this factor exists for: easing the sheet downwind makes drive."""
+        """What this factor is for: easing the sheet downwind makes drive."""
         drives = [_drive_at(twa_deg=180.0, boom_deg=b) for b in (0.0, 30.0, 60.0, 90.0)]
         assert all(b > a for a, b in itertools.pairwise(drives))
         assert drives[0] < 0.1 * drives[-1]  # centreline makes almost nothing
 
     @pytest.mark.parametrize("twa", [160.0, 170.0, 180.0])
     def test_sheet_range_changes_drive_downwind(self, twa: float) -> None:
-        """Regression guard: without the factor the spread here is 0.00 N."""
+        """Without the factor the spread here is 0.00 N."""
         drives = [_drive_at(twa_deg=twa, boom_deg=b) for b in np.arange(0.0, 90.1, 15.0)]
         assert max(drives) - min(drives) > 0.25 * max(drives)
 

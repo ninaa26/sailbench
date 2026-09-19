@@ -1,21 +1,20 @@
 """Build the sail model a config's ``sail`` block asks for.
 
-The hub composes a boat from one hull, one keel, one rudder and one sail, and
-until now the sail was hard-wired to :class:`~sailbench.foils.basic_sail.BasicSail`
-while every config already carried an unread ``model_type`` key beside it. This
-module gives that key its meaning, so adding a sail model is a change in
-``sailbench/foils/`` alone -- one new class and one new row in :data:`SAIL_MODELS`
--- rather than a change to the hub.
+The hub builds one hull, one keel, one rudder and one sail. The sail used to be
+hard-wired to BasicSail even though every config already had a ``model_type``
+key sitting next to it that nothing read. This gives that key its meaning, so a
+new sail model is one class plus one row in :data:`SAIL_MODELS` and the hub
+stays as it is.
 
-The names match the ones the sim-overhaul line registers its sail models under,
-so a config written against either reads the same: ``basic``, ``hybrid``,
-``orc_main``, ``orc_w_jib``. ``sail`` is kept as an alias for ``basic`` because
-the four configs already in ``configs/`` spell it that way, and rewriting them
-here would only create conflicts for the branches that also touch them.
+Names are the same ones the sim-overhaul line registers under, so a config
+reads the same against either: ``basic``, ``hybrid``, ``orc_main``,
+``orc_w_jib``. ``sail`` is an alias for ``basic`` because the four existing
+configs spell it that way and renaming them would conflict with the other
+branches that touch those files.
 
-Selecting a model here is also the moment at which a key belonging to a
-*different* model becomes a mistake, so this is where that is reported. See
-:mod:`sailbench.foils.sail_keys` for what is and is not policed.
+Picking a model is also when a key belonging to a different model becomes a
+mistake, so the check for that lives here. See :mod:`sailbench.foils.sail_keys`
+for what it does and does not look at.
 """
 
 import warnings
@@ -30,30 +29,29 @@ from sailbench.models.model import Model
 # Sail models a config may select with `sail.model_type`.
 SAIL_MODELS: dict[str, type[Model]] = {
     "basic": BasicSail,  # NeuralFoil section polar
-    "sail": BasicSail,  # legacy alias for `basic`; what configs/ already says
+    "sail": BasicSail,  # older name for `basic`, used by the existing configs
     "hybrid": HybridSail,  # analytic CL = CL_max sin(2a)
     "orc_main": ORCMainSail,  # ORC VPP envelope, single mainsail
     "orc_w_jib": ORCWithJibSail,  # ORC VPP envelope, main + jib
 }
 
-# What a config gets when its sail block names no model: the model the hub built
-# unconditionally before `model_type` was read, so existing configs are unmoved.
+# What a sail block with no model_type gets. This is what the hub built
+# unconditionally before model_type was read, so existing configs do not move.
 DEFAULT_SAIL_MODEL = "basic"
 
-# The models whose coefficients come from the ORC envelope rather than from a
-# section polar or an analytic curve. Which side of that boundary a model sits
-# on is what decides whether a given config key is read; see `sail_keys`.
+# Models taking their coefficients from the ORC envelope rather than a section
+# polar or an analytic curve. Which side of that line a model is on decides
+# which config keys it reads. See `sail_keys`.
 ORC_SAIL_MODELS = frozenset({"orc_main", "orc_w_jib"})
 
 
 class UnreadSailKeyWarning(UserWarning):
     """A sail block carries keys the model it selected does not read.
 
-    A warning and not an error: this repo's configs deliberately keep every
-    model's parameters in one flat block so that switching model is a one-line
-    edit, and refusing would make that impossible. But a key that is read by
-    nothing is a number someone wrote down and believes is in effect, so it
-    should not pass in silence either.
+    Warning rather than error: the configs here keep every model's parameters
+    in one flat block so that switching model is a one-line edit, and refusing
+    would end that. An unread key is still someone's number that is not doing
+    anything, so it should not pass silently either.
     """
 
 
@@ -67,9 +65,9 @@ def build_sail(sail_cfg: dict[str, Any]) -> Model:
         Model: The sail model, constructed from the same block.
 
     Raises:
-        ValueError: If ``model_type`` names a model that does not exist. An
-            unknown name is a typo, not a request for the default: silently
-            falling back would sail a different boat than the config describes.
+        ValueError: If ``model_type`` names a model that does not exist. That
+            is a typo, not a request for the default, and falling back would
+            sail a different boat from the one the config describes.
 
     Warns:
         UnreadSailKeyWarning: If the block carries keys belonging to a sail
@@ -87,9 +85,9 @@ def build_sail(sail_cfg: dict[str, Any]) -> Model:
     if stray:
         other = "a section polar or the analytic curve" if name in ORC_SAIL_MODELS else "the ORC envelope"
         warnings.warn(
-            f"sail model_type: {name} does not read {', '.join(stray)} -- "
+            f"sail model_type: {name} does not read {', '.join(stray)}; "
             f"{'that key belongs' if len(stray) == 1 else 'those keys belong'} to {other}. "
-            f"They are being ignored, so the boat is not sailing the numbers the config gives it.",
+            f"They are ignored, so the boat is not sailing the numbers in the config.",
             UnreadSailKeyWarning,
             stacklevel=2,
         )

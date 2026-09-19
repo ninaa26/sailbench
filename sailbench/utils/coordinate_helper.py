@@ -70,9 +70,9 @@ def apparent_wind_boat(
 ) -> np.ndarray:
     """Apparent wind in the boat frame, as the vector the air travels along.
 
-    Shared by every above-water model and by the hub's sheeting logic, so the
-    two cannot disagree about the wind. `wind_dir_deg` is the direction the
-    true wind blows *to*, in the world frame.
+    Used by the sail models and by the hub's sheeting, so they cannot end up
+    with different winds. `wind_dir_deg` is the direction the true wind blows
+    to, in the world frame.
 
     Args:
         state (State): Current body state of the sailboat.

@@ -4,22 +4,21 @@
 # bottom-up from the Fall 2025 mech report's materials. Positions are relative to
 # the mass-weighted CG (= LCB), NOT the CAD's volume-weighted CG 92 mm forward.
 #
-# This is `flingo_floty.yaml` with the measured numbers in place of the initial
-# estimates, and with the rig sailed as the sloop it actually is. The two configs
-# are kept side by side rather than one replacing the other: flingo_floty.yaml is
-# what the trained policies under runs/ were trained against, so overwriting it
-# would silently change what those checkpoints mean.
+# flingo_floty.yaml with the measured numbers instead of the first estimates,
+# and the rig sailed as the sloop it is. Kept as a second file: the policies
+# under runs/ were trained against flingo_floty.yaml, so editing that one in
+# place would change what those checkpoints mean.
 #
-# Differences from flingo_floty.yaml
+# Changes from flingo_floty.yaml
 #   sail   NeuralFoil section polar -> ORC VPP envelope, main + jib (orc_w_jib).
-#          A symmetric NACA section makes no lift at zero incidence, which is the
-#          wrong shape for a cambered membrane; the ORC tables are measured
-#          soft-sail coefficients against apparent wind angle. Area 1.34 -> 1.971
-#          m² (main 1.196 + jib 0.775, both measured).
+#          A symmetric NACA section has no camber and makes no lift at zero
+#          incidence; the ORC tables are measured soft-sail coefficients
+#          against apparent wind angle. Area 1.34 -> 1.971 m²
+#          (main 1.196 + jib 0.775, both measured).
 #   boat   inertia_z 1.0 -> 3.4 kg·m², bottom-up from the report's materials.
 #   hull   L/B/T from the floating waterline at 27 kg.
-#   keel   area 0.13 -> 0.1225 m² (STL projected silhouette), and it sits 0.184 m
-#          forward of the CG rather than on it.
+#   keel   area 0.13 -> 0.1225 m² (STL projected silhouette), now 0.184 m
+#          forward of the CG instead of on it.
 #   rudder area 0.046 -> 0.0462 m², arm -0.46 -> -0.227 m against the real CG.
 
 simulation:
@@ -34,11 +33,11 @@ boat:
   inertia_z: 3.4  # [kg·m²] yaw about the vertical through the CG
 
 hull:
-  # BasicHullModel derives its drag from L, B and T, so those are the only hull
-  # numbers this boat needs. The xu1/yv1/nr1 style damping coefficients the other
-  # configs carry belong to LinearHydroModel and QuadraticHydroModel, which are
-  # not wired into the hub; none have been measured for this hull, and guessed
-  # ones would read as measurements beside everything else in this file.
+  # BasicHullModel gets its drag from L, B and T, so that is all this boat
+  # needs. The xu1/yv1/nr1 coefficients in the other configs belong to
+  # LinearHydroModel and QuadraticHydroModel, neither of which the hub uses.
+  # None have been measured for this hull, and guessed values would look like
+  # measurements next to everything else here.
   rho: 1000.0  # [kg/m³] fresh water
   x_pos: 0.0   # [m]     x position relative to boat center of rotation
   y_pos: 0.0   # [m]     y position relative to boat center of rotation
@@ -58,18 +57,18 @@ keel:
   area: 0.1225  # [m²]   planform area (STL projected silhouette)
   x_pos: 0.184  # [m]    forward of the CG (CG = LCB, fixed by level flotation)
   y_pos: 0.0    # [m]    y position relative to boat center of rotation
-  # Measured but unused by BasicKeel, kept for the record: span 0.700 m hull
-  # underside to tip, geometric AR 4.00, effective AR 8.0 with the hull acting
-  # as an end plate. BasicKeel is a 2-D section model and charges no induced
-  # drag, so there is no key here for any of it.
+  # Measured, but BasicKeel has no key for any of it: span 0.700 m from hull
+  # underside to tip, geometric AR 4.00, effective AR 8.0 with the hull as an
+  # end plate. BasicKeel is 2-D and charges no induced drag. Recorded here so
+  # the numbers are not lost.
 
 sail:
   # ORC VPP coefficient envelope against apparent wind angle. Flingo is a sloop,
   # not the single-sail rig the earlier notes assumed: main 1.196 m² (luff 2.326,
   # AR 4.53) + jib 0.775 m² (luff 2.260, AR 6.59). `orc_w_jib` is the
   # main-and-jib model. Switching this one line to `orc_main` sails the same
-  # boat with the jib struck -- main alone, 1.196 m2 -- rather than sailing the
-  # combined area as one oversized mainsail. Leave jib_area in place for it.
+  # boat with the jib struck, i.e. main alone at 1.196 m². Leave jib_area in
+  # place for that; orc_main reads it as the sail to drop.
   model_type: orc_w_jib
   # The simulator carries one sail, so `area` is the COMBINED reference area and
   # `jib_area` tells the model how much of it to look up in the jib table
@@ -90,7 +89,7 @@ sail:
   # the sheets are eased past 80. Induced drag goes as 1/heff², so holding heff
   # at the masthead over-charges the rig on a beat.
   #
-  # Which edition of the curve is a choice, and it is made here on purpose:
+  # Which edition of the curve is a choice:
   #   orc-2022  peak 1.22   used with ORC's milder depowering (min flat 0.62)
   #   orc-2023  peak 1.45   raised as a package WITH deeper depowering (0.42)
   # This boat has no righting-moment limit yet, so it cannot pay the 2023
@@ -113,12 +112,12 @@ sail:
   # max_heeling_moment_nm: 30.0
   # heel_arm_m: 1.47
   #
-  # No NeuralFoil or hybrid parameters: the ORC model never opens a section
-  # polar and never evaluates an analytic CL curve, so airfoil_name, res,
-  # alpha_min/alpha_max, CL_max, CD0 and CD1 would all be read by nothing. (Re
-  # on the measured 0.447 m mean chord at 6 m/s apparent is 1.8e5, if a section
-  # model is ever fitted here.) Switching model_type to `basic` or `hybrid` means
-  # adding that model's keys as well as changing the line.
+  # No NeuralFoil or hybrid parameters. The ORC model opens no section polar
+  # and evaluates no analytic CL curve, so airfoil_name, res, alpha_min,
+  # alpha_max, CL_max, CD0 and CD1 would all go unread (sail_factory warns if
+  # you add them). Re on the measured 0.447 m mean chord at 6 m/s apparent is
+  # 1.8e5 if a section model is ever fitted here. Switching model_type to
+  # `basic` or `hybrid` means adding that model's keys too.
 
 rudder:
   airfoil_name: NACA0012
@@ -128,16 +127,16 @@ rudder:
   area: 0.0462   # [m²]   blade planform, stock excluded
   x_pos: -0.227  # [m]    aft of the CG; arm 92 mm shorter against the real CG
   y_pos: 0.0     # [m]    y position relative to boat center of rotation
-  # Left at the 0.2 the other configs use. BasicRudder is a 2-D section model
-  # with no finite-span correction, and this factor is the hand-tuned stand-in
-  # for exactly that correction; raising it here would over-steer the boat.
+  # Left at the 0.2 the other configs use. BasicRudder is 2-D with no
+  # finite-span correction, and this factor is the hand-tuned stand-in for it.
+  # Raising it would over-steer the boat.
   effectiveness: 0.2
   aoa_limit_deg: 35.0  # clamp effective AoA for stalled rudder behavior
   cl_max: 1.0
   cd_max: 1.2
-  # Manual-helm aids, OFF here. A deadband makes small commands vanish and an
-  # auto-centre moves the rudder the helm did not ask for, so a learned policy
-  # cannot tell what its own action did.
+  # Manual-helm aids, off here. A deadband drops small commands and an
+  # auto-centre moves the rudder nobody asked for, which makes it hard for a
+  # policy to tell what its own action did.
   deadband_deg: 0.0
   center_tau_s: 0.0
   max_rate_deg_s: 120.0  # servo slew limit

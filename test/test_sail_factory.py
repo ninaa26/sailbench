@@ -54,29 +54,29 @@ class TestModelSelection:
         assert isinstance(build_sail(sail_block(model_type=model_type, **extra)), expected)
 
     def test_names_and_table_agree(self) -> None:
-        """The parametrization above covers the whole table, so a new model needs a new row."""
+        """Keeps the parametrization above in step with the table."""
         assert set(SAIL_MODELS) == {"basic", "sail", "hybrid", "orc_main", "orc_w_jib"}
 
     def test_missing_model_type_keeps_the_old_default(self) -> None:
-        """A sail block with no model_type gets what the hub used to build unconditionally."""
+        """No model_type gets what the hub used to build unconditionally."""
         assert isinstance(build_sail(sail_block()), SAIL_MODELS[DEFAULT_SAIL_MODEL])
         assert isinstance(build_sail(sail_block()), BasicSail)
 
     def test_the_legacy_alias_is_the_same_model(self) -> None:
-        """`sail` and `basic` must not drift into two different section models."""
+        """`sail` and `basic` must not drift into two different models."""
         assert SAIL_MODELS["sail"] is SAIL_MODELS["basic"]
 
     def test_unknown_model_type_is_an_error(self) -> None:
-        """A typo must not silently fall back to the default and sail a different boat."""
+        """A typo must not fall back to the default and sail a different boat."""
         with pytest.raises(ValueError, match="orc_main"):
             build_sail(sail_block(model_type="orc"))
 
 
 class TestUnreadKeysAreReported:
-    """A key the selected model cannot read is a number someone believes is in effect."""
+    """A key the selected model cannot read is a number that does nothing."""
 
     def test_orc_model_reports_section_and_analytic_keys(self) -> None:
-        """Point an existing config at the ORC envelope and nine keys stop being read."""
+        """Point an existing config at the ORC envelope: nine keys go unread."""
         cfg = dict(yaml.safe_load(Path(CONFIG_PATH, "basic_sailbot.yaml").read_text())["sail"])
         cfg["model_type"] = "orc_main"
         with pytest.warns(UnreadSailKeyWarning, match="airfoil_name") as record:
@@ -86,14 +86,14 @@ class TestUnreadKeysAreReported:
             assert key in message, key
 
     def test_section_model_reports_orc_keys(self) -> None:
-        """And the mirror: heff and friends do nothing to a section polar."""
+        """The other way round: heff and friends do nothing to a section polar."""
         cfg = dict(yaml.safe_load(Path(CONFIG_PATH, "flingo_full.yaml").read_text())["sail"])
         cfg["model_type"] = "basic"
         with pytest.warns(UnreadSailKeyWarning, match="heff"):
             build_sail(cfg)
 
     def test_jib_area_is_not_reported_against_the_orc_models(self) -> None:
-        """Both ORC models read jib_area now, so neither should call it unread."""
+        """Both ORC models read jib_area, so neither should call it unread."""
         for model_type in ("orc_main", "orc_w_jib"):
             with warnings.catch_warnings():
                 warnings.simplefilter("error", UnreadSailKeyWarning)
@@ -101,12 +101,12 @@ class TestUnreadKeysAreReported:
 
     @pytest.mark.parametrize("config_file", BOAT_CONFIGS)
     def test_no_shipped_config_warns(self, config_file: str) -> None:
-        """The report is worth nothing if it fires on every boat in the tree.
+        """A report that fires on every boat in the tree gets ignored.
 
-        This is why the check is only across the ORC boundary. Every config
-        here deliberately keeps the section and analytic parameters side by
-        side so that switching between those two is a one-line edit, and
-        reporting that habit would bury the case that matters.
+        This is why the check only looks across the ORC boundary. Every config
+        here keeps the section and analytic parameters side by side so that
+        switching between those two is a one-line edit, and flagging that would
+        bury the case that matters.
         """
         with warnings.catch_warnings():
             warnings.simplefilter("error", UnreadSailKeyWarning)
@@ -147,13 +147,13 @@ class TestShippedConfigs:
         return hub, state
 
     def test_orc_main_is_flingo_with_the_jib_struck(self) -> None:
-        """`orc_main` on this config must be the same boat under main alone.
+        """`orc_main` on this config is the same boat under main alone.
 
-        No config selects orc_main, so without this the model is only ever
-        built in isolation. It is also the assertion that the one-line switch
-        means what the config says it means: the mainsail keeps its 1.196 m2,
-        the jib's 0.775 leaves the rig, and the boat is slower for it rather
-        than sailing the combined area as one oversized main.
+        No shipped config selects orc_main, so otherwise it is only ever built
+        in isolation. Also checks the one-line switch does what the config
+        says: the mainsail keeps its 1.196 m2, the jib's 0.775 leaves the rig,
+        and the boat is slower for it instead of sailing the combined area as
+        one big main.
         """
         hub = SailboatHub("flingo_full.yaml")
         hub.sail_cfg["model_type"] = "orc_main"
@@ -169,12 +169,11 @@ class TestShippedConfigs:
         assert under_main.u < under_both.u  # but less sail is less speed
 
     def test_flingo_full_sails(self) -> None:
-        """End to end: the ORC rig drives the boat through the hub, not just in isolation.
+        """End to end: the ORC rig drives the boat through the hub.
 
-        Everything else here checks that the right class is constructed. This
-        checks that the class the hub wires up, the hub's own sheeting and the
-        transform tree agree well enough to make headway -- six seconds on a
-        beam reach from a standstill.
+        Everything else here only checks that the right class gets built. This
+        checks that the model, the hub's sheeting and the transform tree agree
+        well enough to make headway: six seconds on a beam reach from a stop.
         """
         hub = SailboatHub("flingo_full.yaml")
         # Wind blows TO 90 deg; heading 90 deg off it puts the boat on a beam reach.
@@ -187,6 +186,6 @@ class TestShippedConfigs:
         assert hub.last_forces["sail"][0] > 0.0  # the rig is driving, not braking
 
     def test_existing_configs_are_unmoved(self) -> None:
-        """Wiring model_type up must not have changed what the pre-existing configs build."""
+        """Reading model_type must not change what the existing configs build."""
         for config_file in ("basic_sailbot.yaml", "flingo_floty.yaml", "real_boat.yaml", "fun_boat.yaml"):
             assert isinstance(SailboatHub(config_file).sail, BasicSail), config_file

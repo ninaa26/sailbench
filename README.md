@@ -90,26 +90,26 @@ A boat is one YAML file in `configs/`, passed to the simulator by filename
 | `basic_sailbot.yaml` | Generic 1.5 m test hull; the default everywhere |
 | `flingo_floty.yaml` | Flingo Floaty, initial estimates |
 | `flingo_full.yaml` | Flingo Floaty, measured geometry and mass, sailed as the main-and-jib sloop it is |
-| `wpi_wild_goats.yaml` | WPI SailBot "Wild Goats", 2026 IRSR overall winner — a second boat to sail against |
+| `wpi_wild_goats.yaml` | WPI SailBot "Wild Goats", 2026 IRSR overall winner. A second boat to sail against |
 | `real_boat.yaml`, `fun_boat.yaml` | Tuning sandboxes |
 
 The `sail` block's `model_type` chooses which aerodynamic model sails the rig.
-Adding one is a new class in `sailbench/foils/` and a new row in
-`SAIL_MODELS` (`sailbench/foils/sail_factory.py`); the hub does not change.
+Adding one is a new class in `sailbench/foils/` plus a row in `SAIL_MODELS`
+(`sailbench/foils/sail_factory.py`). The hub does not change.
 
 | `model_type` | Model | What it is |
 | --- | --- | --- |
 | `basic` (default, aliased `sail`) | `BasicSail` | NeuralFoil polar of a symmetric section at a geometric angle of attack |
 | `hybrid` | `HybridSail` | Analytic `CL = CL_max sin(2a)`, wing below stall and parachute above |
-| `orc_main` | `ORCMainSail` | The same envelope, mainsail only — on a config with a `jib_area`, that boat with the jib struck |
+| `orc_main` | `ORCMainSail` | Same envelope, mainsail only. On a config with a `jib_area`, that boat with the jib struck |
 | `orc_w_jib` | `ORCWithJibSail` | The same envelope for a sloop: main and jib tables blended by area share |
 
-The ORC models are measured soft-sail coefficients and read their own keys
-(`heff`, `heff_model`, `eff_span_corr`, `jib_area`, and the optional
-`max_heeling_moment_nm` / `heel_arm_m` righting-moment limit) rather than an
-airfoil and a Reynolds number. See the module docstring in
-`sailbench/foils/orc_sail.py` for the reference and the equations. A rigid
-wingsail is better served by `sail` or `hybrid`, which is why
+The ORC models use measured soft-sail coefficients. They read their own keys
+(`heff`, `heff_model`, `eff_span_corr`, `jib_area`, and optionally
+`max_heeling_moment_nm` / `heel_arm_m` for a righting-moment limit) and not an
+airfoil and Reynolds number. `sailbench/foils/orc_sail.py` has the reference
+and the equations. If you mix the two sets of keys, `build_sail` warns. A rigid
+wingsail is better off on `basic` or `hybrid`, which is why
 `wpi_wild_goats.yaml` stays on the section polar.
 
 ## RL Training (Gymnasium + SB3)

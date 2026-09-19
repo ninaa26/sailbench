@@ -1,29 +1,24 @@
 """Which config keys belong to which family of sail model.
 
-The sail models read disjoint parameters. A section-polar model wants an airfoil
-and a Reynolds number; the analytic model wants three coefficients; the ORC
-envelope wants none of that and takes its coefficients from apparent wind angle
-instead. A config that names one model and carries another's parameters is
-describing a boat the simulator is not sailing.
+The sail models read disjoint parameters. A section-polar model wants an
+airfoil and a Reynolds number, the analytic model wants three coefficients, and
+the ORC envelope wants neither because it works off apparent wind angle. A
+config naming one model while carrying another's parameters describes a boat
+the simulator is not sailing.
 
-The lists live here rather than in any one model because they describe the
-*boundary* between them and belong to none of them. (In the sim-overhaul line,
-where ``basic_sail`` imported its list from ``orc_sail``, that import decided
-model registration order as a side effect. A module neither model owns removes
-the coupling.)
+The lists are here rather than in a model because they describe the boundary
+between models and belong to none of them. (In the sim-overhaul line
+basic_sail imported its list from orc_sail, which also fixed model
+registration order as a side effect.)
 
-What is policed, and what is not
---------------------------------
-:func:`unread_keys` reports across the ORC boundary only: ORC keys on a
-section/analytic model, or section/analytic keys on an ORC model. That is the
-boundary this repo's configs have never crossed, so nothing already in
-``configs/`` is affected.
+:func:`unread_keys` only looks across the ORC boundary: ORC keys on a
+section/analytic model, or section/analytic keys on an ORC model. No config in
+configs/ crosses that boundary, so none of them are affected.
 
-It deliberately says nothing about a block holding both ``FOIL_ONLY_KEYS`` and
-``HYBRID_ONLY_KEYS``. Every config in ``configs/`` does exactly that on purpose,
-with a comment naming the model each group belongs to, so that switching between
-those two is a one-line edit. Reporting it would fire on every boat in the tree
-on every load, and a report that always fires is worth nothing within a day.
+It says nothing about a block holding both FOIL_ONLY_KEYS and
+HYBRID_ONLY_KEYS. Every config does that, with a comment naming the model
+each group belongs to, so switching between those two stays a one-line edit.
+Flagging it would fire on every boat on every load and get ignored.
 """
 
 from __future__ import annotations
@@ -46,8 +41,8 @@ HYBRID_ONLY_KEYS: tuple[str, ...] = (
     "CL_max",
 )
 
-# Read only by the ORC envelope models. `jib_area` is on this list and is read
-# by both of them: orc_w_jib blends the jib in, orc_main strikes it.
+# Read only by the ORC envelope models. Both of them read jib_area: orc_w_jib
+# blends the jib in, orc_main strikes it.
 ORC_ONLY_KEYS: tuple[str, ...] = (
     "alpha_opt_deg",
     "eff_span_corr",
@@ -63,7 +58,7 @@ ORC_ONLY_KEYS: tuple[str, ...] = (
 def unread_keys(sail_cfg: dict[str, object], *, is_orc: bool) -> list[str]:
     """Return the keys in a sail block that the selected model cannot read.
 
-    Reports across the ORC boundary only; see the module docstring for why the
+    Looks across the ORC boundary only. See the module docstring for why the
     section/analytic overlap is left alone.
 
     Args:

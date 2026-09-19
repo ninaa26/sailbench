@@ -47,7 +47,7 @@ class SailboatHub:
 
     def boat_factory(self) -> None:
         """Instantiate boat components from configs."""
-        # Which sail model is a config decision; see `sailbench.foils.sail_factory`.
+        # The config picks the sail model. See sailbench/foils/sail_factory.py.
         self.sail = build_sail(self.sail_cfg)
         self.rudder = BasicRudder(self.rudder_cfg)
         self.hull = BasicHullModel(self.hull_cfg)
@@ -212,7 +212,7 @@ class SailboatHub:
         Luffing/depower remains in the aerodynamic sail model.
         """
 
-        # Same apparent wind the sail model sees, so the two cannot disagree.
+        # Same apparent wind the sail model sees.
         apparent_wind_boat = utils.apparent_wind_boat(
             state,
             self.tf,
