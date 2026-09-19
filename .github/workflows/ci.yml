@@ -1,0 +1,40 @@
+name: CI
+
+# Runs the test suite on every PR and on pushes to main.
+#
+# Right now nobody has to run pytest before merging, so a branch that breaks the
+# physics can land without anyone noticing.
+#
+# This only reports for now. To make it block merges:
+# Settings -> Branches -> add a rule for `main`, tick "Require status checks to
+# pass before merging", pick the `test` job.
+#
+# No lint job on purpose. `ruff check` finds 335 things on main and the
+# formatter wants to rewrite 20 files, so a lint job would be red from day one
+# and we'd all learn to ignore it. Worth doing later as its own PR, fixing the
+# violations at the same time.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      # --group rl pulls in torch, which is a big download. test_rl_smoke.py and
+      # test_waypoint_env.py need it, so we can't skip it. The cache keeps this
+      # to a few seconds after the first run.
+      - name: Install dependencies
+        run: uv sync --group dev --group rl
+
+      - name: Unit tests
+        run: uv run pytest -q
