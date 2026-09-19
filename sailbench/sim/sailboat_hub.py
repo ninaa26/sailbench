@@ -10,7 +10,7 @@ import sailbench.utils.coordinate_helper as utils
 from sailbench.dynamics.basic_hull_model import BasicHullModel
 from sailbench.foils.basic_keel import BasicKeel
 from sailbench.foils.basic_rudder import BasicRudder
-from sailbench.foils.basic_sail import BasicSail
+from sailbench.foils.sail_factory import build_sail
 from sailbench.models.model import State
 from sailbench.tf.tf_tree import TFTree2D, Transform2D
 
@@ -47,7 +47,8 @@ class SailboatHub:
 
     def boat_factory(self) -> None:
         """Instantiate boat components from configs."""
-        self.sail = BasicSail(self.sail_cfg)
+        # Which sail model is a config decision; see `sailbench.foils.sail_factory`.
+        self.sail = build_sail(self.sail_cfg)
         self.rudder = BasicRudder(self.rudder_cfg)
         self.hull = BasicHullModel(self.hull_cfg)
         self.keel = BasicKeel(self.keel_cfg)
