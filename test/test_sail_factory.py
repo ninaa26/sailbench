@@ -1,5 +1,6 @@
 """`sail.model_type` selects the sail model, and every shipped config names one that exists."""
 
+import math
 from pathlib import Path
 from typing import Any
 
@@ -10,7 +11,9 @@ from sailbench.foils.basic_sail import BasicSail
 from sailbench.foils.hybrid_sail import HybridSail
 from sailbench.foils.orc_sail import ORCMainSail, ORCWithJibSail
 from sailbench.foils.sail_factory import DEFAULT_SAIL_MODEL, SAIL_MODELS, build_sail
+from sailbench.models.model import State
 from sailbench.sim.sailboat_hub import CONFIG_PATH, SailboatHub
+from sailbench.solvers.rk4 import rk4_step
 
 
 def _boat_configs() -> list[str]:
@@ -83,6 +86,24 @@ class TestShippedConfigs:
         """The WPI boat is a rigid wingsail, so it stays on the section model, not ORC."""
         hub = SailboatHub("wpi_wild_goats.yaml")
         assert isinstance(hub.sail, BasicSail)
+
+    def test_flingo_full_sails(self) -> None:
+        """End to end: the ORC rig drives the boat through the hub, not just in isolation.
+
+        Everything else here checks that the right class is constructed. This
+        checks that the class the hub wires up, the hub's own sheeting and the
+        transform tree agree well enough to make headway -- six seconds on a
+        beam reach from a standstill.
+        """
+        hub = SailboatHub("flingo_full.yaml")
+        # Wind blows TO 90 deg; heading 90 deg off it puts the boat on a beam reach.
+        psi = math.radians(90.0) - math.pi / 2.0
+        state = State(x=0.0, y=0.0, psi=(math.cos(psi), math.sin(psi)), u=0.0, v=0.0, r=0.0)
+        for _ in range(300):
+            state = hub.step(state, 0.02, rk4_step, sail_angle=math.radians(45.0), rudder_angle=0.0)
+        assert state.u > 0.5
+        assert math.isfinite(state.x)
+        assert hub.last_forces["sail"][0] > 0.0  # the rig is driving, not braking
 
     def test_existing_configs_are_unmoved(self) -> None:
         """Wiring model_type up must not have changed what the pre-existing configs build."""
