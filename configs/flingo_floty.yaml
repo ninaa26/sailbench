@@ -33,6 +33,7 @@ environment:
   # still wins.
   rho_water: 1000.0  # [kg/m3] fresh water
   rho_air: 1.225     # [kg/m3] sea-level air
+  nu_water: 1.19e-6  # [m2/s] kinematic viscosity, fresh water at ~15 C
 
 boat:
   mass: 27.0      # [kg]
@@ -43,6 +44,7 @@ boat:
   inertia_z: 3.4  # [kg·m²] yaw about the vertical through the CG
 
 hull:
+  friction_model: hughes  # ITTC-style, not the flat 0.004
   # BasicHullModel gets its drag from L, B and T, so that is all this boat
   # needs. The xu1/yv1/nr1 coefficients in the other configs belong to
   # LinearHydroModel and QuadraticHydroModel, neither of which the hub uses.

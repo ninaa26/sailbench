@@ -2,6 +2,7 @@
 
 import numpy as np
 
+from sailbench.dynamics.friction import friction_law
 from sailbench.models.model import Model, State
 from sailbench.tf.tf_tree import TFTree2D
 
@@ -23,7 +24,10 @@ class BasicHullModel(Model):
         s = 1.7 * l * (b + t)
         aside = l * t
 
-        k_u = 0.5 * rho * s * 0.004
+        # Skin friction. `flat` is the constant 0.004 this used to hardcode;
+        # `hughes` varies it with Reynolds number, which is what friction does.
+        cf = friction_law(self.p)(float(u), l, self.p)
+        k_u = 0.5 * rho * s * cf
         k_v = 0.5 * rho * aside
         k_r = (1.0 / 8.0) * rho * t * (l**4)
 
