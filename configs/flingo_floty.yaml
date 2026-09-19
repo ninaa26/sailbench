@@ -26,6 +26,14 @@
 simulation:
   dt: 0.02  # [s] solver step
 
+environment:
+  # Fluid properties, stated once. The hub layers these under every component,
+  # so a component that needs one gets it without the config having to know
+  # which key that component reads. A value set in a component's own section
+  # still wins.
+  rho_water: 1000.0  # [kg/m3] fresh water
+  rho_air: 1.225     # [kg/m3] sea-level air
+
 boat:
   mass: 27.0      # [kg]
   # Bottom-up from the report's materials, not the CAD mass properties: the CAD
@@ -40,7 +48,6 @@ hull:
   # LinearHydroModel and QuadraticHydroModel, neither of which the hub uses.
   # None have been measured for this hull, and guessed values would look like
   # measurements next to everything else here.
-  rho: 1000.0  # [kg/m³] fresh water
   x_pos: 0.0   # [m]     x position relative to boat center of rotation
   y_pos: 0.0   # [m]     y position relative to boat center of rotation
   L: 1.372     # [m] length of waterline, at the floating waterline for 27 kg
@@ -77,7 +84,6 @@ sail:
   # (ORC 5.4.1: coefficients blend by area share).
   area: 1.971      # [m²]   main + jib; sail area / displacement^(2/3) = 21.9
   jib_area: 0.775  # [m²]   measured; 39% of the rig
-  air_density: 1.225  # [kg/m³] sea-level air
   wind_speed: 5
   wind_dir_deg: 90  # direction wind blows TO (deg, 0=east, 90=north)
   x_pos: 0.267      # [m]   combined CE, 0.083 m forward of the keel CLR

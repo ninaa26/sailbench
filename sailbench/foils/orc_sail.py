@@ -166,7 +166,8 @@ class ORCMainSail(Model):
         eff_span_corr: ORC eq. 5.42 sail-plan correction to effective span,
             from roach, fractionality and overlap. Default 1.0.
         wind_speed, wind_dir_deg: true wind, direction it blows *to*.
-        air_density: [kg/m^3], default 1.225. The key the other sail models use.
+        rho_air: [kg/m^3], default 1.225. Usually supplied by the config's
+            `environment` block rather than set here.
         alpha_opt_deg: angle of attack of peak lift, default 22.
         flat_stall_floor: lift left when badly over-sheeted.
         max_heeling_moment_nm, heel_arm_m: the righting-moment limit to depower
@@ -454,7 +455,7 @@ class ORCMainSail(Model):
             np.ndarray: X and Y forces in newtons (boat frame).
 
         """
-        rho = float(self.p.get("air_density", 1.225))
+        rho = float(self.p.get("rho_air", 1.225))
 
         aw_boat = utils.apparent_wind_boat(
             state,

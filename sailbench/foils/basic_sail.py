@@ -68,7 +68,7 @@ class BasicSail(Foil):
         cl_scale = float(np.clip((aoa_deg_abs - luff_deg) / luff_ramp_deg, 0.0, 1.0))
         cl *= cl_scale
 
-        rho = float(self.p.get("air_density", 1.225))  # kg/m³
+        rho = float(self.p.get("rho_air", 1.225))  # kg/m³
         q = 0.5 * rho * speed**2
         s = float(self.p.get("area", 1.0))  # m²
         lift = cl * q * s

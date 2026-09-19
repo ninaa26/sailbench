@@ -35,7 +35,7 @@ class HybridSail(Model):
                 - CL_max: max lift coefficient (default 1.2)
                 - CD0: zero-AoA drag (default 0.1)
                 - CD1: drag shape factor (default 1.0)
-                - air_density: kg/m³ (default 1.225)
+                - rho_air: kg/m³ (default 1.225), usually from `environment`
         """
         super().__init__(params)
 
@@ -55,7 +55,7 @@ class HybridSail(Model):
         wind_speed = float(self.p.get("wind_speed", 0.0))
         wind_angle_deg = float(self.p.get("wind_dir_deg", 0.0))
         area = float(self.p.get("area", 1.0))
-        rho = float(self.p.get("air_density", 1.225))
+        rho = float(self.p.get("rho_air", 1.225))
         cl_max = float(self.p.get("CL_max", 1.2))
         cd0 = float(self.p.get("CD0", 0.1))
         cd1 = float(self.p.get("CD1", 1.0))

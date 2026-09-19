@@ -45,7 +45,8 @@ class Windage(Model):
             every angle. Ignored when frontal_area_m2 is given.
         wind_speed, wind_dir_deg: true wind. The hub keeps these in step with
             the sail's, so both see the same wind.
-        air_density: [kg/m^3], default 1.225. The key the sail models use.
+        rho_air: [kg/m^3], default 1.225. Usually supplied by the config's
+            `environment` block rather than set here.
         x_pos, y_pos: position relative to the centre of rotation, used by the
             hub to turn this force into a yaw moment.
     """
@@ -86,5 +87,5 @@ class Windage(Model):
 
         # Drag acts along the apparent wind, i.e. the air pushes the boat the way
         # it is travelling. Magnitude 0.5 * rho * V^2 * CdA.
-        rho = float(self.p.get("air_density", 1.225))
+        rho = float(self.p.get("rho_air", 1.225))
         return np.asarray(0.5 * rho * speed * self.drag_area_at(beta) * aw, dtype=float)

@@ -40,7 +40,7 @@ def make_sail(**overrides: float) -> ORCMainSail:
             "heff": HEFF,
             "wind_speed": 5.0,
             "wind_dir_deg": WIND_TO_DEG,
-            "air_density": 1.225,
+            "rho_air": 1.225,
             **overrides,
         },
     )
@@ -55,7 +55,7 @@ def make_sloop(**overrides: float) -> ORCWithJibSail:
             "heff": HEFF,
             "wind_speed": 5.0,
             "wind_dir_deg": WIND_TO_DEG,
-            "air_density": 1.225,
+            "rho_air": 1.225,
             **overrides,
         },
     )
@@ -164,12 +164,12 @@ class TestForces:
         mirrored = math.radians(WIND_TO_DEG) + math.pi - math.radians(45.0)
         assert sail.compute(make_state(psi=mirrored), tree(math.radians(-20.0), mirrored))[1] < 0.0
 
-    def test_force_scales_with_air_density(self) -> None:
-        """Force is proportional to air_density, the same key the other sail models read."""
+    def test_force_scales_with_rho_air(self) -> None:
+        """Force is proportional to rho_air, the same key the other sail models read."""
         psi = beat(45.0)
         args = (make_state(psi=psi), tree(math.radians(20.0), psi))
-        light = make_sail(air_density=1.0).compute(*args)
-        heavy = make_sail(air_density=2.0).compute(*args)
+        light = make_sail(rho_air=1.0).compute(*args)
+        heavy = make_sail(rho_air=2.0).compute(*args)
         assert heavy[0] == pytest.approx(2.0 * light[0])
 
     def test_taller_rig_pays_less_induced_drag(self) -> None:

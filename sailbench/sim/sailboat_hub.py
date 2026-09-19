@@ -33,6 +33,13 @@ class SailboatHub:
         self.rudder_cfg = cfg["rudder"]
         self.sail_cfg = cfg["sail"]
         self.windage_cfg = cfg.get("windage", {})
+        self.environment_cfg = cfg.get("environment", {})
+        # Keys each component stated for itself, captured before anything is
+        # layered in, so an `environment` value never overwrites a deliberate one.
+        self._component_own_keys = {
+            id(section): set(section)
+            for section in (self.hull_cfg, self.keel_cfg, self.rudder_cfg, self.sail_cfg, self.windage_cfg)
+        }
 
         self.tf = TFTree2D()
         # Last computed sail force in boat frame (Fx, Fy) for diagnostics / UI.
@@ -47,8 +54,33 @@ class SailboatHub:
 
         self.boat_factory()
 
+    def _apply_environment(self) -> None:
+        """Offer the shared `environment` values to every component as a default.
+
+        Components each defaulted their own fluid density under their own key
+        name, and no config set any of them, so every component silently fell
+        back and the number written in the config did nothing. Three of the
+        configs here said `hull: rho_water:` while the hull read `rho`.
+
+        The hub layers the `environment` block underneath each component's own
+        parameters rather than assigning named keys, so it stays ignorant of
+        which component wants which quantity: a foil asks for `rho_air`, a hull
+        for `rho_water`, and a component needing neither sees no change. A value
+        set in the component's own section still wins.
+        """
+        for cfg in (self.hull_cfg, self.keel_cfg, self.rudder_cfg, self.sail_cfg, self.windage_cfg):
+            own = self._component_own_keys.get(id(cfg), set())
+            for key, value in self.environment_cfg.items():
+                # setdefault would be wrong: after the first pass an injected
+                # value is indistinguishable from one the component stated, so a
+                # later change to `environment` would silently not apply.
+                if key not in own:
+                    cfg[key] = value
+
     def boat_factory(self) -> None:
         """Instantiate boat components from configs."""
+        self._apply_environment()
+
         self.sail = build_sail(self.sail_cfg)
         self.rudder = BasicRudder(self.rudder_cfg)
         self.hull = BasicHullModel(self.hull_cfg)

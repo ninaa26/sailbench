@@ -20,7 +20,7 @@ def make_windage(**overrides: float) -> Windage:
         {
             "wind_speed": 5.0,
             "wind_dir_deg": WIND_TO_DEG,
-            "air_density": 1.225,
+            "rho_air": 1.225,
             **MEASURED,
             **overrides,
         }
@@ -120,12 +120,12 @@ class TestForce:
         two = make_windage(wind_speed=8.0).compute(*args)
         assert abs(two[0]) == pytest.approx(4.0 * abs(one[0]), rel=1e-6)
 
-    def test_scales_with_air_density(self) -> None:
-        """Force is proportional to air_density."""
+    def test_scales_with_rho_air(self) -> None:
+        """Force is proportional to rho_air."""
         psi = beat(45.0)
         args = (make_state(u=1.5, psi=psi), tree(psi))
-        light = make_windage(air_density=1.0).compute(*args)
-        heavy = make_windage(air_density=2.0).compute(*args)
+        light = make_windage(rho_air=1.0).compute(*args)
+        heavy = make_windage(rho_air=2.0).compute(*args)
         assert heavy[0] == pytest.approx(2.0 * light[0], rel=1e-9)
 
     def test_boat_speed_raises_upwind_drag(self) -> None:
