@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import numpy as np
+import pytest
 
 from sailbench.rl.envs.waypoint_env import WaypointEnv, WaypointEnvConfig
 
@@ -135,3 +136,37 @@ def test_vis_callback_receives_state_messages() -> None:
     control = latest.get("control")
     assert isinstance(control, dict)
     assert control.get("mode") == "training"
+
+
+def test_info_carries_is_success_for_sb3() -> None:
+    """SB3's EvalCallback logs a success rate only under this exact key.
+
+    Renaming or dropping it silently turns off `eval/success_rate` and the
+    `successes` array in `evaluations.npz`, leaving a run with no measurement of
+    whether the boat ever reaches the mark.
+    """
+    env = _make_env()
+    _, info = env.reset(seed=3)
+    assert info["is_success"] is info["success"]
+
+    _, _, _, _, info = env.step(np.zeros(2, dtype=np.float32))
+    assert info["is_success"] is info["success"]
+
+
+def test_reaching_the_waypoint_pays_the_success_reward() -> None:
+    """Arrival is worth `success_reward` on top of the shaping terms."""
+    cfg = WaypointEnvConfig(
+        simulator_config="basic_sailbot.yaml",
+        vmg_multiplier=0.0,
+        dist_multiplier=0.0,
+        time_penalty=0.0,
+        success_reward=200.0,
+    )
+    env = WaypointEnv(config=cfg)
+    env.reset(seed=5)
+    env.waypoint = np.array([env.state.x, env.state.y], dtype=np.float64)
+
+    _, reward, terminated, _, info = env.step(np.zeros(2, dtype=np.float32))
+    assert info["is_success"]
+    assert terminated
+    assert reward == pytest.approx(200.0, abs=1.0)

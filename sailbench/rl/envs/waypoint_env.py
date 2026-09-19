@@ -416,6 +416,12 @@ class WaypointEnv(gym.Env[NDArray[np.float32], NDArray[np.float64]]):  # type: i
             "reward_surge_speed": surge_speed_bonus_term,
             "penalty_time": time_penalty_term,
             "success": success,
+            # SB3's EvalCallback logs `eval/success_rate` and fills
+            # `evaluations.npz["successes"]` only when it finds this exact key in
+            # the info dict. Without it nothing in a training run answers "does
+            # the boat reach the mark?" -- episode length is a proxy, not an
+            # answer. `success` above is kept for callers that already read it.
+            "is_success": success,
             "failure": failure,
         }
 
