@@ -18,7 +18,14 @@ env:
   spawn_radius_m: 10.0
   waypoint_min_radius_m: 12.0
   waypoint_max_radius_m: 25.0
-  upwind_waypoint_bias: 1
+  # 1 put every mark dead upwind, which meant the policy never left the one
+  # region where a hard-sheeted main is genuinely right -- it pinned the sheet
+  # action at one extreme for 100% of its steps and steered on the rudder alone,
+  # leaving half the action space untrained. 0.5 keeps the beat (the skill worth
+  # having) and adds reaching and running legs, where the sheet now costs 12-42%
+  # of boat speed if it is wrong. Raise it back towards 1 only for a policy that
+  # is meant to do nothing but beat.
+  upwind_waypoint_bias: 0.5
   upwind_half_angle_deg: 25.0
   success_radius_m: 1.5
   fail_radius_m: 80.0
