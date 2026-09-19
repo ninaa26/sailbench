@@ -67,7 +67,9 @@ sail:
   # ORC VPP coefficient envelope against apparent wind angle. Flingo is a sloop,
   # not the single-sail rig the earlier notes assumed: main 1.196 m² (luff 2.326,
   # AR 4.53) + jib 0.775 m² (luff 2.260, AR 6.59). `orc_w_jib` is the
-  # main-and-jib model; `orc_main` is mainsail only and will refuse a jib_area.
+  # main-and-jib model. Switching this one line to `orc_main` sails the same
+  # boat with the jib struck -- main alone, 1.196 m2 -- rather than sailing the
+  # combined area as one oversized mainsail. Leave jib_area in place for it.
   model_type: orc_w_jib
   # The simulator carries one sail, so `area` is the COMBINED reference area and
   # `jib_area` tells the model how much of it to look up in the jib table

@@ -45,12 +45,18 @@ individual sails' coefficients, normalised by the reference area,
     KPP   = sum_i kp_i * CLmax_i^2 * bk_i * A_i / (Aref * CLmax^2)   (5.41)
 
 with ``bk_i`` a blanketing factor. The two rigs are separate models so a config
-says which one it means: :class:`ORCMainSail` is a single mainsail and refuses a
-``jib_area``; :class:`ORCWithJibSail` is main plus jib and requires one. They
-share everything but the list of sails :meth:`ORCMainSail.envelope` sums over.
+says which one it means, and on the same config they are the same boat with and
+without its jib: :class:`ORCWithJibSail` is main plus jib and requires a
+``jib_area``; :class:`ORCMainSail` reads that same ``jib_area`` as the sail to
+strike, dropping it and the area it occupied. Switching ``model_type`` is
+therefore a one-line edit that lowers a headsail, not a change of rig. Given no
+``jib_area`` at all, :class:`ORCMainSail` is simply a mainsail of the configured
+area. They share everything but the list of sails
+:meth:`ORCMainSail.envelope` sums over.
+
 The jib makes more lift than the main at low apparent wind angles and none past
-about 150 degrees, so a sloop points better and runs slower than a main-only rig
-of the same area.
+about 150 degrees, so a sloop points better than the same boat under main alone
+-- and, carrying more sail, is faster everywhere the jib still draws.
 
 Blanketing is 1 for both sails here. ORC's mainsail blanketing only differs
 from 1 with a mizzen staysail, and the jib's only for an overlapping genoa
@@ -140,16 +146,42 @@ KHEFF_2023 = np.array(
 KHEFF_CURVES = {"orc-2022": KHEFF_2022, "orc-2023": KHEFF_2023}
 
 
+def _checked_jib_area(jib_area: float, area: float) -> float:
+    """Return ``jib_area`` as a float, or raise if it cannot be part of ``area``.
+
+    Args:
+        jib_area (float): The configured ``jib_area``.
+        area (float): The rig's configured area [m^2].
+
+    Returns:
+        float: The validated jib area [m^2].
+
+    Raises:
+        ValueError: If the jib is not a positive part of the rig.
+
+    """
+    value = float(jib_area)
+    if not 0.0 < value <= area:
+        msg = f"sail jib_area must lie within (0, area]: got jib_area={value}, area={area}"
+        raise ValueError(msg)
+    return value
+
+
 class ORCMainSail(Model):
     """Mainsail-only aerodynamic model using the ORC VPP coefficient envelope.
 
-    Selected by ``model_type: orc_main`` in a config's ``sail`` block. For a
-    main-and-jib rig use :class:`ORCWithJibSail`; this model rejects a
-    ``jib_area`` rather than ignore it, so a sloop config cannot quietly run as
-    a single sail.
+    Selected by ``model_type: orc_main`` in a config's ``sail`` block. On a
+    sloop config -- one carrying a ``jib_area`` -- this is that same boat with
+    the jib struck: the mainsail keeps its own area and the jib's share leaves
+    the rig. For both sails up use :class:`ORCWithJibSail`.
 
     Config keys (all optional except ``area``):
-        area: reference sail area [m^2].
+        area: the rig as rigged [m^2]. With a ``jib_area`` present the jib is
+            struck and the ORC reference area becomes ``area - jib_area``;
+            without one it is ``area``.
+        jib_area: optional [m^2]. Present, it is the part of ``area`` this model
+            drops. It is read rather than refused so that one config can be
+            sailed both ways.
         heff: rig height [m], the highest point of the sail plan above the
             waterline (ORC's ``b + HBI``). Defaults to ``1.8 * sqrt(area)``.
         heff_model: ``orc-2022`` or ``orc-2023`` scales ``heff`` by that
@@ -176,8 +208,13 @@ class ORCMainSail(Model):
 
         """
         super().__init__(params)
+        # `area` as configured is the rig as rigged. `_rig` decides which of
+        # those sails are actually set, and the ORC reference area is their sum
+        # -- so striking the jib shrinks the reference area rather than handing
+        # the mainsail the jib's square metres to sail as well.
         self.area = float(self.p.get("area", 1.0))
         self.sails = self._rig()
+        self.area = sum(area for _, area in self.sails)
         # The parasitic part of CD0: the least drag the rig makes at any angle,
         # which is skin friction and windage on the sail itself. Everything
         # above it is form drag from the sail's projected area, and only that
@@ -215,14 +252,29 @@ class ORCMainSail(Model):
 
     # --- rig ------------------------------------------------------------
     def _rig(self) -> list[tuple[SailTable, float]]:
-        """Return the sails making up the rig as ``(table, area)`` pairs."""
-        if "jib_area" in self.p:
+        """Return the sails making up the rig as ``(table, area)`` pairs.
+
+        A ``jib_area`` is not an error here: it is the same boat with the jib
+        struck. The mainsail keeps the area it has, the jib's share leaves the
+        rig, and the reference area shrinks with it. That makes ``model_type``
+        a genuine one-line switch on a sloop config -- ``orc_w_jib`` is the boat
+        with both sails up, ``orc_main`` the same boat under main alone --
+        rather than silently handing the mainsail the jib's square metres to
+        sail as one oversized main.
+        """
+        jib_area = self.p.get("jib_area")
+        if jib_area is None:
+            self.main_area = self.area
+            return [(MAIN_TABLE, self.main_area)]
+
+        self.main_area = self.area - _checked_jib_area(jib_area, self.area)
+        if self.main_area <= 0.0:
             msg = (
-                "sail model_type: orc_main is a single mainsail and got jib_area="
-                f"{self.p['jib_area']!r}; use model_type: orc_w_jib for a main-and-jib rig"
+                "sail model_type: orc_main strikes the jib and is left with no mainsail: "
+                f"jib_area={float(jib_area)} is the whole of area={self.area}"
             )
             raise ValueError(msg)
-        return [(MAIN_TABLE, self.area)]
+        return [(MAIN_TABLE, self.main_area)]
 
     # --- coefficient envelope ------------------------------------------
     def envelope(self, awa_deg: float) -> tuple[float, float, float]:
@@ -506,9 +558,6 @@ class ORCWithJibSail(ORCMainSail):
         if jib_area is None:
             msg = "sail model_type: orc_w_jib needs jib_area; for a single mainsail use model_type: orc_main"
             raise ValueError(msg)
-        self.jib_area = float(jib_area)
-        if not 0.0 < self.jib_area <= self.area:
-            msg = f"sail jib_area must lie within (0, area]: got jib_area={self.jib_area}, area={self.area}"
-            raise ValueError(msg)
+        self.jib_area = _checked_jib_area(jib_area, self.area)
         self.main_area = self.area - self.jib_area
         return [(MAIN_TABLE, self.main_area), (JIB_TABLE, self.jib_area)]

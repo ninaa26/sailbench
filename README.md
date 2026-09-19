@@ -101,7 +101,7 @@ Adding one is a new class in `sailbench/foils/` and a new row in
 | --- | --- | --- |
 | `basic` (default, aliased `sail`) | `BasicSail` | NeuralFoil polar of a symmetric section at a geometric angle of attack |
 | `hybrid` | `HybridSail` | Analytic `CL = CL_max sin(2a)`, wing below stall and parachute above |
-| `orc_main` | `ORCMainSail` | ORC VPP coefficient envelope against apparent wind angle, single mainsail |
+| `orc_main` | `ORCMainSail` | The same envelope, mainsail only — on a config with a `jib_area`, that boat with the jib struck |
 | `orc_w_jib` | `ORCWithJibSail` | The same envelope for a sloop: main and jib tables blended by area share |
 
 The ORC models are measured soft-sail coefficients and read their own keys

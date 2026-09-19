@@ -87,6 +87,40 @@ class TestShippedConfigs:
         hub = SailboatHub("wpi_wild_goats.yaml")
         assert isinstance(hub.sail, BasicSail)
 
+    @staticmethod
+    def _sail_for(seconds: float, *, model_type: str) -> tuple[SailboatHub, State]:
+        """Sail flingo_full on a beam reach under `model_type`, from a standstill."""
+        hub = SailboatHub("flingo_full.yaml")
+        hub.sail_cfg["model_type"] = model_type
+        hub.boat_factory()  # rebuild the boat from the edited block
+        psi = math.radians(90.0) - math.pi / 2.0
+        state = State(x=0.0, y=0.0, psi=(math.cos(psi), math.sin(psi)), u=0.0, v=0.0, r=0.0)
+        for _ in range(int(seconds / 0.02)):
+            state = hub.step(state, 0.02, rk4_step, sail_angle=math.radians(45.0), rudder_angle=0.0)
+        return hub, state
+
+    def test_orc_main_is_flingo_with_the_jib_struck(self) -> None:
+        """`orc_main` on this config must be the same boat under main alone.
+
+        No config selects orc_main, so without this the model is only ever
+        built in isolation. It is also the assertion that the one-line switch
+        means what the config says it means: the mainsail keeps its 1.196 m2,
+        the jib's 0.775 leaves the rig, and the boat is slower for it rather
+        than sailing the combined area as one oversized main.
+        """
+        hub = SailboatHub("flingo_full.yaml")
+        hub.sail_cfg["model_type"] = "orc_main"
+        hub.boat_factory()
+        assert isinstance(hub.sail, ORCMainSail)
+        assert not isinstance(hub.sail, ORCWithJibSail)
+        assert hub.sail.main_area == pytest.approx(1.971 - 0.775)
+        assert hub.sail.area == pytest.approx(1.971 - 0.775)
+
+        _, under_main = self._sail_for(6.0, model_type="orc_main")
+        _, under_both = self._sail_for(6.0, model_type="orc_w_jib")
+        assert under_main.u > 0.5  # main alone still drives the boat
+        assert under_main.u < under_both.u  # but less sail is less speed
+
     def test_flingo_full_sails(self) -> None:
         """End to end: the ORC rig drives the boat through the hub, not just in isolation.
 

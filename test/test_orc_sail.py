@@ -10,6 +10,7 @@ from sailbench.foils.orc_sail import (
     JIB_AWA_DEG,
     JIB_CD0,
     JIB_CL,
+    JIB_TABLE,
     KHEFF_2022,
     KHEFF_2023,
     KHEFF_AWA_DEG,
@@ -18,6 +19,7 @@ from sailbench.foils.orc_sail import (
     MAIN_AWA_DEG,
     MAIN_CD0,
     MAIN_CL,
+    MAIN_TABLE,
     ORCMainSail,
     ORCWithJibSail,
 )
@@ -286,10 +288,43 @@ class TestRightingMomentDepower:
 class TestRigSelection:
     """`orc_main` is a mainsail and `orc_w_jib` is main plus jib; neither guesses from the config."""
 
-    def test_mainsail_model_refuses_a_jib(self) -> None:
-        """A jib_area handed to the single-sail model is an error, not silently dropped."""
-        with pytest.raises(ValueError, match="orc_w_jib"):
-            make_sail(jib_area=JIB)
+    def test_mainsail_model_strikes_the_jib(self) -> None:
+        """`orc_main` on a sloop config is that boat with the jib lowered.
+
+        The mainsail keeps its own area; the jib's share leaves the rig, so the
+        reference area the coefficients are normalised by shrinks with it.
+        Handing the mainsail the combined area instead would sail a rig the
+        boat does not have.
+        """
+        struck = make_sail(jib_area=JIB)
+        assert struck.main_area == pytest.approx(AREA - JIB)
+        assert struck.area == pytest.approx(AREA - JIB)
+        assert make_sloop().main_area == pytest.approx(struck.main_area)
+
+    def test_striking_the_jib_is_the_only_difference(self) -> None:
+        """Same config, same mainsail: only the jib and its area are gone."""
+        struck, whole = make_sail(jib_area=JIB), make_sloop()
+        assert struck.heff == whole.heff
+        assert [t for t, _ in struck.sails] == [MAIN_TABLE]
+        assert [t for t, _ in whole.sails] == [MAIN_TABLE, JIB_TABLE]
+        # Main-alone is exactly the mainsail table; the sloop is a blend.
+        assert struck.envelope(27.0)[0] == pytest.approx(float(np.interp(27.0, MAIN_AWA_DEG, MAIN_CL)))
+
+    def test_no_jib_area_is_a_plain_mainsail(self) -> None:
+        """With nothing to strike, the configured area is the mainsail's."""
+        assert make_sail().area == pytest.approx(AREA)
+        assert make_sail().main_area == pytest.approx(AREA)
+
+    def test_striking_the_whole_rig_leaves_no_sail(self) -> None:
+        """A jib that is the entire rig cannot be struck and leave a mainsail."""
+        with pytest.raises(ValueError, match="no mainsail"):
+            make_sail(jib_area=AREA)
+
+    def test_less_drive_under_main_alone(self) -> None:
+        """Dropping the jib drops sail area, so the boat is slower where the jib drew."""
+        psi = beat(45.0)
+        args = (make_state(psi=psi), tree(math.radians(20.0), psi))
+        assert make_sail(jib_area=JIB).compute(*args)[0] < make_sloop().compute(*args)[0]
 
     def test_sloop_model_requires_a_jib(self) -> None:
         """The sloop model without a jib_area is a config error pointing at `orc_main`."""
@@ -368,6 +403,12 @@ class TestSloop:
         """A jib bigger than the rig, zero, or negative, is a config error."""
         with pytest.raises(ValueError, match="jib_area"):
             make_sloop(jib_area=bad)
+
+    @pytest.mark.parametrize("bad", [2.5, 0.0, -0.1])
+    def test_the_mainsail_model_validates_it_too(self, bad: float) -> None:
+        """Now that `orc_main` reads jib_area, it has to check it on the same terms."""
+        with pytest.raises(ValueError, match="jib_area"):
+            make_sail(jib_area=bad)
 
     def test_whole_rig_as_jib_is_allowed(self) -> None:
         """jib_area == area is the degenerate but valid jib-only rig."""
