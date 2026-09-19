@@ -72,6 +72,18 @@ class TestShippedConfigs:
         hub = SailboatHub(config_file)
         assert hub.sail is not None
 
+    def test_flingo_full_is_a_sloop(self) -> None:
+        """flingo_full.yaml is the measured boat, sailed as the main-and-jib rig it is."""
+        hub = SailboatHub("flingo_full.yaml")
+        assert isinstance(hub.sail, ORCWithJibSail)
+        assert hub.sail.jib_area == pytest.approx(0.775)
+        assert hub.sail.main_area == pytest.approx(1.971 - 0.775)
+
+    def test_wpi_sails_a_section_polar(self) -> None:
+        """The WPI boat is a rigid wingsail, so it stays on the section model, not ORC."""
+        hub = SailboatHub("wpi_wild_goats.yaml")
+        assert isinstance(hub.sail, BasicSail)
+
     def test_existing_configs_are_unmoved(self) -> None:
         """Wiring model_type up must not have changed what the pre-existing configs build."""
         for config_file in ("basic_sailbot.yaml", "flingo_floty.yaml", "real_boat.yaml", "fun_boat.yaml"):

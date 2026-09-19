@@ -79,6 +79,39 @@ To run a trained RL model in sailbench, perform the following.
 3. Open http://localhost:8000. The red/yellow marker shows the current waypoint.
 
 
+## Boats and Sail Models
+
+A boat is one YAML file in `configs/`, passed to the simulator by filename
+(`--config <name>.yaml`). Each file has a `simulation`, `boat`, `hull`, `keel`,
+`sail` and `rudder` block.
+
+| Config | Boat |
+| --- | --- |
+| `basic_sailbot.yaml` | Generic 1.5 m test hull; the default everywhere |
+| `flingo_floty.yaml` | Flingo Floaty, initial estimates |
+| `flingo_full.yaml` | Flingo Floaty, measured geometry and mass, sailed as the main-and-jib sloop it is |
+| `wpi_wild_goats.yaml` | WPI SailBot "Wild Goats", 2026 IRSR overall winner — a second boat to sail against |
+| `real_boat.yaml`, `fun_boat.yaml` | Tuning sandboxes |
+
+The `sail` block's `model_type` chooses which aerodynamic model sails the rig.
+Adding one is a new class in `sailbench/foils/` and a new row in
+`SAIL_MODELS` (`sailbench/foils/sail_factory.py`); the hub does not change.
+
+| `model_type` | Model | What it is |
+| --- | --- | --- |
+| `basic` (default, aliased `sail`) | `BasicSail` | NeuralFoil polar of a symmetric section at a geometric angle of attack |
+| `hybrid` | `HybridSail` | Analytic `CL = CL_max sin(2a)`, wing below stall and parachute above |
+| `orc_main` | `ORCMainSail` | ORC VPP coefficient envelope against apparent wind angle, single mainsail |
+| `orc_w_jib` | `ORCWithJibSail` | The same envelope for a sloop: main and jib tables blended by area share |
+
+The ORC models are measured soft-sail coefficients and read their own keys
+(`heff`, `heff_model`, `eff_span_corr`, `jib_area`, and the optional
+`max_heeling_moment_nm` / `heel_arm_m` righting-moment limit) rather than an
+airfoil and a Reynolds number. See the module docstring in
+`sailbench/foils/orc_sail.py` for the reference and the equations. A rigid
+wingsail is better served by `sail` or `hybrid`, which is why
+`wpi_wild_goats.yaml` stays on the section polar.
+
 ## RL Training (Gymnasium + SB3)
 
 SailBench includes a Gymnasium continuous-control task (`sailbench.rl.envs.WaypointEnv`) and Stable-Baselines3 scripts for training/evaluating PPO on waypoint navigation.
