@@ -73,6 +73,9 @@ keel:
 
   # Measured: hull underside to tip. Geometric AR 4.00; with the hull acting as
   # an end plate the effective AR is 8.0, so this is a deep, efficient fin.
+  # Past stall, blend towards a flat plate rather than trusting a section polar
+  # where it has no meaning. 25 deg puts stall onset near 15.
+  alpha_sep_deg: 25.0
   span: 0.700            # [m] submerged span below the hull
   end_plate_factor: 2.0  # root sealed against the hull, so the flow mirrors
 sail:
@@ -143,9 +146,6 @@ rudder:
   # finite-span correction, and this factor is the hand-tuned stand-in for it.
   # Raising it would over-steer the boat.
   effectiveness: 0.2
-  aoa_limit_deg: 35.0  # clamp effective AoA for stalled rudder behavior
-  cl_max: 1.0
-  cd_max: 1.2
   # Manual-helm aids, off here. A deadband drops small commands and an
   # auto-centre moves the rudder nobody asked for, which makes it hard for a
   # policy to tell what its own action did.
@@ -155,6 +155,7 @@ rudder:
 
   # Blade only. The CAD body spans 0.578 m but about 0.10 m of that is stock
   # above the blade, which is not a lifting surface. Geometric AR 4.95.
+  alpha_sep_deg: 25.0    # as the keel; a separation angle is a section property
   span: 0.478            # [m] blade span
   end_plate_factor: 1.0  # surface-piercing, no image
 windage:
