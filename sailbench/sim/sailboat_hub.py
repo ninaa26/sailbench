@@ -162,9 +162,21 @@ class SailboatHub:
         """
         self._sync_wind()
 
+        # Advance the rudder BEFORE integrating, so the command is in effect
+        # during the step that issued it. Advancing it afterwards left the boat
+        # sailing each step on the previous step's rudder.
+        self._advance_rudder(float(rudder_angle), float(dt))
+
         def dynamics(arr: np.ndarray) -> np.ndarray:
             """State derivative; arr = [x, y, c, s, u, v, r]."""
             state_vec = State.from_array(arr)
+
+            # Re-derive the frames from this stage's state. Left alone they hold
+            # the heading from the end of the previous step, so every RK4 stage
+            # evaluates its forces against a stale attitude and the integrator
+            # collapses towards first order: four force evaluations per step
+            # buying Euler-grade accuracy.
+            self._set_kinematic_frames(state_vec, float(np.abs(sail_angle)))
 
             fx, fy, mz = self._forces(state_vec)
 
@@ -207,13 +219,9 @@ class SailboatHub:
         next_arr = solver(dynamics, state.to_array(), dt)
         next_state = State.from_array(next_arr)
 
-        # --- update tf tree with dynamic components ---
-        self._update_dynamic_frames(
-            state=next_state,
-            sheet_limit_rad=float(np.abs(sail_angle)),
-            rudder_angle_deg=rudder_angle,
-            dt=dt,
-        )
+        # Leave the tf tree consistent with the state being returned. The rudder
+        # was advanced before integrating, so this only places frames.
+        self._set_kinematic_frames(next_state, float(np.abs(sail_angle)))
 
         # --- rebuild state ---
         return next_state
@@ -225,7 +233,18 @@ class SailboatHub:
         rudder_angle_deg: float,
         dt: float,
     ) -> None:
-        """Update boat/sail/rudder frames for a given instantaneous state."""
+        """Advance the rudder one step, then place every frame. Once per step."""
+        self._advance_rudder(float(rudder_angle_deg), float(dt))
+        self._set_kinematic_frames(state, sheet_limit_rad)
+
+    def _set_kinematic_frames(self, state: State, sheet_limit_rad: float) -> None:
+        """Place the boat, sail and rudder frames for a given state.
+
+        A pure function of the state and wherever the rudder currently is, so it
+        is safe to call inside an integrator stage. The rudder is sampled here,
+        never advanced: advancing it per stage would apply one step of slew four
+        times over.
+        """
         self.tf.add_frame(
             name="boat",
             parent="world",
@@ -245,24 +264,6 @@ class SailboatHub:
             ),
         )
 
-        # Rudder: smooth + auto-center for easier manual control.
-        cmd_deg = float(rudder_angle_deg)
-        deadband_deg = float(self.rudder_cfg.get("deadband_deg", 1.5))
-        center_tau_s = float(self.rudder_cfg.get("center_tau_s", 0.6))
-        max_rate_deg_s = float(self.rudder_cfg.get("max_rate_deg_s", 120.0))
-
-        if abs(cmd_deg) <= deadband_deg:
-            cmd_deg = 0.0
-
-        if center_tau_s > 0.0 and cmd_deg == 0.0:
-            # Exponential return-to-center when you "let go".
-            alpha = float(np.clip(dt / center_tau_s, 0.0, 1.0))
-            self._rudder_angle_deg = (1.0 - alpha) * self._rudder_angle_deg
-        else:
-            # Rate-limit toward commanded angle.
-            max_step = max_rate_deg_s * float(dt)
-            err = cmd_deg - self._rudder_angle_deg
-            self._rudder_angle_deg += float(np.clip(err, -max_step, max_step))
         rudder_rad = float(np.radians(self._rudder_angle_deg))
         self.tf.add_frame(
             name="rudder",
@@ -274,6 +275,26 @@ class SailboatHub:
                 s=float(np.sin(rudder_rad)),
             ),
         )
+
+    def _advance_rudder(self, cmd_deg: float, dt: float) -> None:
+        """Move the rudder one step toward its command.
+
+        Actuator state, not a function of the boat state, so this is called
+        exactly once per step from outside the integrator.
+        """
+        deadband_deg = float(self.rudder_cfg.get("deadband_deg", 1.5))
+        center_tau_s = float(self.rudder_cfg.get("center_tau_s", 0.6))
+        max_rate_deg_s = float(self.rudder_cfg.get("max_rate_deg_s", 120.0))
+        if abs(cmd_deg) <= deadband_deg:
+            cmd_deg = 0.0
+        if center_tau_s > 0.0 and cmd_deg == 0.0:
+            # Exponential return-to-center when you "let go".
+            alpha = float(np.clip(dt / center_tau_s, 0.0, 1.0))
+            self._rudder_angle_deg = (1.0 - alpha) * self._rudder_angle_deg
+        else:
+            max_step = max_rate_deg_s * dt
+            err = cmd_deg - self._rudder_angle_deg
+            self._rudder_angle_deg += float(np.clip(err, -max_step, max_step))
 
     def _sync_wind(self) -> None:
         """Keep the windage model on the same wind as the sail.
