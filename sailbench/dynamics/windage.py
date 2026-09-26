@@ -50,6 +50,8 @@ class Windage(Model):
             hub to turn this force into a yaw moment.
     """
 
+    reads_wind = True
+
     def __init__(self, params: dict[str, Any]) -> None:
         """Initialize the windage model."""
         super().__init__(params)

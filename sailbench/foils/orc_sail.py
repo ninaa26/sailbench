@@ -174,6 +174,8 @@ class ORCMainSail(Model):
 
     """
 
+    reads_wind = True
+
     def __init__(self, params: dict[str, Any]) -> None:
         """Initialize the ORC sail model.
 

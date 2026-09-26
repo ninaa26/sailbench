@@ -7,12 +7,8 @@ import numpy as np
 import yaml
 
 import sailbench.utils.coordinate_helper as utils
-from sailbench.dynamics.basic_hull_model import BasicHullModel
-from sailbench.dynamics.windage import Windage
-from sailbench.foils.basic_keel import BasicKeel
-from sailbench.foils.basic_rudder import BasicRudder
-from sailbench.foils.sail_factory import build_sail
-from sailbench.models.model import State
+from sailbench.dynamics.component_factory import build_components
+from sailbench.models.model import Model, State
 from sailbench.tf.tf_tree import TFTree2D, Transform2D
 
 CONFIG_PATH = "configs/"
@@ -26,13 +22,13 @@ class SailboatHub:
         with Path(CONFIG_PATH + config_file).open() as file:
             cfg = yaml.safe_load(file)
 
+        self.cfg = cfg
         self.simulation_cfg = cfg["simulation"]
         self.boat_cfg = cfg["boat"]
         self.hull_cfg = cfg["hull"]
         self.keel_cfg = cfg["keel"]
         self.rudder_cfg = cfg["rudder"]
         self.sail_cfg = cfg["sail"]
-        self.windage_cfg = cfg.get("windage", {})
 
         self.tf = TFTree2D()
         # Last computed sail force in boat frame (Fx, Fy) for diagnostics / UI.
@@ -49,23 +45,25 @@ class SailboatHub:
 
     def boat_factory(self) -> None:
         """Instantiate boat components from configs."""
-        self.sail = build_sail(self.sail_cfg)
-        self.rudder = BasicRudder(self.rudder_cfg)
-        self.hull = BasicHullModel(self.hull_cfg)
-        self.keel = BasicKeel(self.keel_cfg)
-        self.components = [self.hull, self.keel, self.sail, self.rudder]
+        # One part per config section, each the model its model_type names; see
+        # component_factory for the choices and for which sections are optional.
+        # The four every boat has are also kept by name, because the hub drives
+        # them. Everything else it only sums.
+        self.components_by_name: dict[str, Model] = build_components(self.cfg)
+        self.hull = self.components_by_name["hull"]
+        self.keel = self.components_by_name["keel"]
+        self.sail = self.components_by_name["sail"]
+        self.rudder = self.components_by_name["rudder"]
+        self._sync_wind()
 
-        # Above-water drag is its own component, not part of the sail: the sail
-        # is a trimmable lifting surface, the mast and topsides are bluff bodies.
-        # Gated on an area rather than on the section existing, so a boat that
-        # says nothing about windage behaves exactly as it did before.
-        has_windage = any(float(self.windage_cfg.get(key, 0.0)) > 0.0 for key in ("frontal_area_m2", "drag_area_m2"))
-        self.windage = Windage(self.windage_cfg) if has_windage else None
-        if self.windage is not None:
-            self.components.append(self.windage)
-            self._sync_wind()
-        self.m = self.boat_cfg.get("mass", self.boat_cfg.get("m", 27.0))
-        self.iz = self.boat_cfg.get("inertia_z", self.boat_cfg.get("Iz", 25.0))
+        # The boat section is the boat as weighed. Parts that are not in it,
+        # like ballast, add their own mass and inertia on top.
+        self.m = float(self.boat_cfg.get("mass", self.boat_cfg.get("m", 27.0)))
+        self.iz = float(self.boat_cfg.get("inertia_z", self.boat_cfg.get("Iz", 25.0)))
+        for component in self.components:
+            mass, inertia = component.mass_properties()
+            self.m += mass
+            self.iz += inertia
 
         # TODO: Change starting position and heading from config
         self.tf.add_frame(
@@ -106,6 +104,11 @@ class SailboatHub:
             transform=Transform2D(x=self.sail_cfg.get("x_pos", 0.0), y=self.sail_cfg.get("y_pos", 0.0), c=1.0, s=0.0),
         )
 
+    @property
+    def components(self) -> list[Model]:
+        """Every part on the boat, in the order their forces are summed."""
+        return list(self.components_by_name.values())
+
     def step(
         self,
         state: State,
@@ -117,7 +120,8 @@ class SailboatHub:
         """Sail the boat.
 
         `sail_angle` is treated as sheet limit (max |sail angle| from centerline),
-        not as a rigid commanded sail angle.
+        not as a rigid commanded sail angle. A jib, if the boat has one, is on
+        the same sheet.
         """
         self._sync_wind()
 
@@ -218,26 +222,26 @@ class SailboatHub:
         )
 
     def _sync_wind(self) -> None:
-        """Keep the windage model on the same wind as the sail.
+        """Keep every part that reads the wind on the same wind as the sail.
 
         Wind lives in the sail's config section and callers change it by writing
-        there. Copying it across each step stops a second aerodynamic component
-        quietly running on the wind from whenever it was built.
+        there. Copying it across each step stops a second aerodynamic part --
+        windage, a jib -- quietly running on the wind from whenever it was built.
         """
-        if self.windage is None:
-            return
-        for key in ("wind_speed", "wind_dir_deg"):
-            if key in self.sail_cfg:
-                self.windage_cfg[key] = self.sail_cfg[key]
+        for component in self.components:
+            if not component.reads_wind or component.p is self.sail_cfg:
+                continue
+            for key in ("wind_speed", "wind_dir_deg"):
+                if key in self.sail_cfg:
+                    component.p[key] = self.sail_cfg[key]
 
     def _resolve_sail_angle_from_sheet(self, state: State, sheet_limit_rad: float) -> float:
         """Resolve sail angle from apparent wind side and geometric sheet angle.
 
         The sail free-spins with apparent wind, constrained by sheet limit.
         Luffing/depower remains in the aerodynamic sail model.
+        Same apparent wind the sail model sees, so the two cannot disagree.
         """
-
-        # Same apparent wind the sail model sees, so the two cannot disagree.
         apparent_wind_boat = utils.apparent_wind_boat(
             state,
             self.tf,
@@ -277,7 +281,7 @@ class SailboatHub:
         u, v, r = float(state.u), float(state.v), float(state.r)
         speed = float(np.hypot(u, v))
 
-        for component in self.components:
+        for name, component in self.components_by_name.items():
             result = np.atleast_1d(component.compute(state, self.tf))
             fx, fy = float(result[0]), float(result[1])
             mz_direct = float(result[2]) if len(result) > 2 else 0.0
@@ -286,18 +290,7 @@ class SailboatHub:
             if component is self.sail:
                 self.last_sail_force = (fx, fy)
 
-            # Track per-component forces for visualization.
-            name = (
-                "hull"
-                if component is self.hull
-                else "keel"
-                if component is self.keel
-                else "rudder"
-                if component is self.rudder
-                else "windage"
-                if component is self.windage
-                else "sail"
-            )
+            # Track per-component forces for visualization, by config section.
             self.last_forces[name] = (fx, fy)
 
             # Moment about CG (2D cross product; x_pos = arm along boat, y_pos = lateral offset)

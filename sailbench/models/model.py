@@ -74,9 +74,23 @@ class State:
 class Model(ABC):
     """Base class for physics models."""
 
+    # Whether compute() reads wind_speed and wind_dir_deg from its parameters.
+    # Wind lives in the sail section; the hub copies it into every part that
+    # sets this, so a windage model or a jib cannot sail on a stale wind.
+    reads_wind = False
+
     def __init__(self, params: dict) -> None:
         """Store a dict of parameters (usually from YAML)."""
         self.p = params
+
+    def mass_properties(self) -> tuple[float, float]:
+        """Return the mass [kg] and yaw inertia [kg m^2] this part adds to the boat.
+
+        The ``boat`` section is the boat as weighed, so most parts are already
+        in it and add nothing. A part that is not, like ballast, overrides this
+        and the hub adds it on top.
+        """
+        return 0.0, 0.0
 
     @abstractmethod
     def compute(self, state: State, tf_tree: TFTree2D) -> np.ndarray:

@@ -148,9 +148,9 @@ class TestHubIntegration:
         from sailbench.sim.sailboat_hub import SailboatHub
 
         hub = SailboatHub("flingo_floty.yaml")
-        assert hub.windage is not None
-        assert hub.windage_cfg.get("wind_speed") == hub.sail_cfg.get("wind_speed")
-        assert hub.windage_cfg.get("wind_dir_deg") == hub.sail_cfg.get("wind_dir_deg")
+        windage = hub.components_by_name["windage"]
+        assert windage.p.get("wind_speed") == hub.sail_cfg.get("wind_speed")
+        assert windage.p.get("wind_dir_deg") == hub.sail_cfg.get("wind_dir_deg")
 
     def test_force_is_along_the_apparent_wind_without_stepping(self) -> None:
         """The force must be parallel to the apparent wind straight away."""
@@ -162,7 +162,7 @@ class TestHubIntegration:
         st = make_state(u=1.8, psi=psi)
         hub._update_dynamic_frames(st, math.radians(20.0), 0.0, 0.02)
         aw = utils.apparent_wind_boat(st, hub.tf, 5.0, WIND_TO_DEG)
-        f = np.asarray(hub.windage.compute(st, hub.tf), dtype=float)
+        f = np.asarray(hub.components_by_name["windage"].compute(st, hub.tf), dtype=float)
         cos = float(np.dot(f, aw) / (np.linalg.norm(f) * np.linalg.norm(aw)))
         assert cos == pytest.approx(1.0, abs=1e-9)
 
@@ -177,4 +177,4 @@ class TestHubIntegration:
         hub = SailboatHub("flingo_floty.yaml")
         hub.sail_cfg["wind_speed"] = 11.0
         hub.step(S.from_array(np_.array([0, 0, 1, 0, 1.0, 0, 0], float)), 0.02, rk4_step, 0.3, 0.0)
-        assert hub.windage_cfg["wind_speed"] == 11.0
+        assert hub.components_by_name["windage"].p["wind_speed"] == 11.0

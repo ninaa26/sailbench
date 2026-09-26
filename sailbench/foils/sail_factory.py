@@ -17,6 +17,7 @@ from sailbench.foils.basic_sail import BasicSail
 from sailbench.foils.hybrid_sail import HybridSail
 from sailbench.foils.orc_sail import ORCMainSail, ORCWithJibSail
 from sailbench.models.model import Model
+from sailbench.models.registry import build_model
 
 # Sail models a config may select with `sail.model_type`.
 SAIL_MODELS: dict[str, type[Model]] = {
@@ -47,10 +48,4 @@ def build_sail(sail_cfg: dict[str, Any]) -> Model:
             different boat from the one the config describes, without saying so.
 
     """
-    name = str(sail_cfg.get("model_type", DEFAULT_SAIL_MODEL)).lower()
-    model = SAIL_MODELS.get(name)
-    if model is None:
-        known = ", ".join(sorted(set(SAIL_MODELS)))
-        msg = f"sail model_type {name!r} does not exist; pick one of: {known}"
-        raise ValueError(msg)
-    return model(sail_cfg)
+    return build_model("sail", sail_cfg, SAIL_MODELS, DEFAULT_SAIL_MODEL)

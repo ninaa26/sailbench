@@ -12,6 +12,8 @@ from sailbench.tf.tf_tree import TFTree2D
 class BasicSail(Foil):
     """Basic sail foil model."""
 
+    reads_wind = True
+
     def __init__(self, params: dict[str, Any]) -> None:
         """Initialize the BasicSail model.
 
