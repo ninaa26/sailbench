@@ -1,0 +1,119 @@
+# WPI SailBot "Wild Goats" — 2025-26 boat
+# Overall winner, 18th International Robotic Sailing Regatta,
+# Merrill Family Sailing Center, Cayuga Lake, Ithaca NY, 7-12 June 2026.
+# Hosted by Cornell University. WPI total 45.9 pts, 1st of 7 teams,
+# winning 4 of 7 events (Station Keeping, Precision Navigation,
+# Collision Avoidance, Presentation). WPI's 5th IRSR title.
+#
+# Added as a second boat to sail against. Every other config here is a Cornell
+# hull, so nothing was exercising the simulator on a different rig, mass and
+# set of lever arms.
+#
+# PROVENANCE
+#   [M] measured/published  — from the WPI SailBot 2025-26 MQP poster,
+#       the 2024-25 MQP report, sailbot.org results, and WPI news.
+#   [E] estimated           — derived from class limits, the published
+#       numbers above, or typical 2 m SailBot-class practice. Flagged
+#       inline so they can be replaced when real numbers surface.
+#
+# Platform: 2 m SailBot class monohull, carbon-fiber hull, freely
+# rotating rigid wingsail with trim tab, bulbed fin keel, dual canted
+# rudders. Jetson Orin Nano + ROS 2 + ESP32, Airmar 220WX, ZED stereo
+# camera w/ YOLO11n buoy detection, Flutter/gRPC ground station.
+#
+# TWO APPROXIMATIONS THIS SIMULATOR FORCES
+#   The rig is a rigid wingsail, not a soft sail, so it is sailed as
+#   `basic`: a symmetric NACA section at a geometric angle of attack,
+#   which is much closer to a rigid wing than the ORC envelope is. The
+#   ORC models are not used here. They are soft-sail VPP coefficients,
+#   wrong physics for a wing, and the boat has no jib for orc_w_jib.
+#   The boat also has two canted rudders on one servo and the simulator
+#   carries one, so they are lumped into a single blade of the combined
+#   area.
+
+simulation:
+  dt: 0.02  # [s] solver step
+
+boat:
+  mass: 25.0      # [kg] [E] "two-meter ... ~50 lb" (23 kg) reported for the
+                  #      WPI boat; +2 kg for the 2025-26 lengthened keel and
+                  #      new cast-lead bulb.
+  inertia_z: 6.5  # [kg·m²] [E] 25 kg with yaw radius of gyration ≈ 0.25·LOA.
+
+hull:
+  rho: 1000.0  # [kg/m³] fresh water — Cayuga Lake
+  x_pos: 0.0   # [m]     x position relative to boat center of rotation
+  y_pos: 0.0   # [m]     y position relative to boat center of rotation
+  L: 1.85      # [m] waterline length [E] — LOA is 2.00 m [M], the SailBot
+               #     class maximum (rules: LOA <= 2 m, draft <= 1.5 m,
+               #     total height <= 5 m; sail area unrestricted).
+  B: 0.45      # [m] beam  [E] typical for a 2 m SailBot-class hull
+  T: 0.10      # [m] canoe-body draft [E] (keel adds 1.30 m -> 1.40 m total,
+               #     inside the 1.5 m class limit)
+
+keel:
+  # 2025-26 redesign: fin lengthened 0.97 m -> 1.30 m while holding the
+  # righting moment, aspect ratio 7.03, taper ratio 0.72, new cast-lead
+  # bulb. Span and AR give S = b²/AR = 1.30²/7.03 = 0.240 m².  [M]
+  airfoil_name: NACA0012  # [E] symmetric section, thickness not published
+  # No model_type here: only the sail block's is read (there is one keel model
+  # and one rudder model). The other configs carry a copy-pasted `model_type:
+  # keel` in both blocks; it has never selected anything.
+  alpha_min: -179 # Minimum and maximum angle of attack in degrees
+  alpha_max: 179
+  res: [3e5]    # [E] Re from 0.185 m mean chord at ~1.5 m/s
+  area: 0.240   # [m²] [M-derived] span 1.30 m, AR 7.03
+                #      root chord 0.215 m, tip chord 0.155 m (taper 0.72)
+  x_pos: 0.0    # [m]  [E] fin close to the center of rotation
+  y_pos: 0.0    # [m]
+  # Published span 1.30 m and AR 7.03 have no config keys here. BasicKeel is
+  # 2-D and charges no induced drag, so a deep fin costs it nothing.
+
+sail:
+  # Freely rotating rigid wingsail, trim-tab controlled, NACA 0018 section
+  # (2024-25 change from NACA 0020). Carbon mast with foam ribs and film
+  # skin; mast moved to the quarter-chord aerodynamic center so the trim
+  # tab has real authority. 2025-26 added a self-trimming airfoil
+  # counterbalance that raised effective sail area by >10%.  [M]
+  model_type: basic  # NeuralFoil section polar; see the note in the header
+  area: 1.50        # [m²] [E] ~3.0 m rig height reported ("10-foot wing-sail"),
+                    #      wing span ~2.75 m x ~0.55 m mean chord. Trim tab
+                    #      adds a further ~0.20 m² [E], not included here.
+  air_density: 1.225  # [kg/m³] sea-level air
+  wind_speed: 4.0   # [m/s] [M] regatta week ran 3-8 kt southerly; 4 m/s ~ 8 kt
+  wind_dir_deg: 90  # direction wind blows TO (deg, 0=east, 90=north)
+  x_pos: 0.05       # [m] [E] mast just forward of the keel's center of effort
+  y_pos: 0.0
+  # NeuralFoil model parameters
+  airfoil_name: NACA0018  # [M] the section the 2024-25 team changed to
+  alpha_min: -179 # Minimum and maximum angle of attack in degrees
+  alpha_max: 179
+  res: [2e5]   # [E] Re from 0.55 m chord at ~5 m/s apparent
+  # Hybrid aerodynamic model (CL_max, CD0, CD1), for model_type: hybrid.
+  # The analytic model suits a rigid wing better than a soft sail. These are
+  # the wing's own numbers, not the soft-sail defaults.
+  CL_max: 1.15  # [E] rigid wing, AR ~5, Re 2e5 — higher than a soft sail
+  CD0: 0.04     # [E] clean rigid wing profile drag, not a soft-sail 0.1
+  CD1: 0.55     # [E] gives CD ~1.14 broadside for an 18%-thick wing
+
+rudder:
+  # Dual rudders canted 20 deg so the pair peaks in authority at 20 deg heel;
+  # one servo drives both. 2025-26 reprofiled for more lift at low speed and
+  # a higher stall angle, and the fuzzy-logic rudder controller was
+  # overhauled for path following.  [M]
+  airfoil_name: NACA0012  # [E]
+  alpha_min: -179 # Minimum and maximum angle of attack in degrees
+  alpha_max: 179
+  res: [1.5e5]   # [E] Re from 0.10 m chord at ~1.5 m/s
+  area: 0.044    # [m²] [E] two blades, ~0.22 m span x ~0.10 m chord each
+                 #      (~0.041 m² projected after the 20 deg cant)
+  x_pos: -0.75   # [m]  [E] aft, near the transom of a 2 m hull
+  y_pos: 0.0     # [m]  pair modeled on centerline
+  effectiveness: 0.25   # [E] twin canted blades bite better than a single
+                        #     blade at heel, so above the 0.2 used elsewhere
+  aoa_limit_deg: 38.0   # [E] raised from 35 — reprofiled for a later stall
+  cl_max: 1.1           # [E] longer chord, more lift at low speed
+  cd_max: 1.25          # [E] and correspondingly more drag
+  deadband_deg: 1.5     # small stick noise -> zero command
+  center_tau_s: 0.6     # time constant to return to center when cmd==0
+  max_rate_deg_s: 120.0 # servo rate limit for manual controllability
