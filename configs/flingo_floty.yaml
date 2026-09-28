@@ -64,3 +64,23 @@ rudder:
   deadband_deg: 1.5     # small stick noise -> zero command
   center_tau_s: 0.6     # time constant to return to center when cmd==0
   max_rate_deg_s: 120.0 # servo rate limit for manual controllability
+
+windage:
+  # Above-water drag: mast, rigging, topsides and deck gear. ORC treats this
+  # separately from the sail coefficients, and leaving it out was measurable:
+  # the rig's drag angle came out at 7.7 deg against a published 12-15.
+  #
+  # Measured 2026-09-16 by silhouette projection at 2 mm raster, everything at
+  # or below the waterline removed. These are UNION areas, not sums: the parts
+  # overlap in projection, so the total is less than adding the rows.
+  #   mast      0.0331 frontal / 0.0331 lateral   centroid 1.273 m above WL
+  #   topsides  0.1082 / 0.2993                   centroid 0.097 m
+  #   deck gear 0.0701 / 0.0737                   centroid 0.179 m
+  frontal_area_m2: 0.1818
+  lateral_area_m2: 0.3678
+  drag_coefficient: 0.8   # ESTIMATE: bluff-body CD, the one unmeasured number here
+  # Longitudinal centroid was not measured; topsides dominate the frontal area
+  # and are spread along the hull, so 0.0 avoids inventing a yaw moment.
+  x_pos: 0.0
+  y_pos: 0.0
+  # centroid_height_m: 0.342   # above WL; unused until the sim gains heel

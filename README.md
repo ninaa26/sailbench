@@ -43,6 +43,45 @@ Sailbench is an end-to-end sailing physics simulator made by [Cornell Autonomous
 5. **[Optional but recommended] Setup VSCode Extensions**   
     I would recommend utilizing VSCode for developing in this project. The two extensions to install are [Ruff](https://marketplace.visualstudio.com/items?itemName=charliermarsh.ruff) (Python formatter and linter) as well as [MyPy](https://marketplace.visualstudio.com/items?itemName=ms-python.mypy-type-checker) (Python type checker). This will help keep consistent code quality and style across sailbench.
 
+## Configuring a Boat
+
+A boat is one YAML file in `configs/`, one section per part. `simulation` and `boat` (mass and yaw inertia) are read by the hub itself; every other section builds one part, and picks its model with `model_type`.
+
+Every boat has these four:
+
+| Section  | `model_type` choices (default first)                         |
+|----------|--------------------------------------------------------------|
+| `hull`   | `basic`, `linear`, `quadratic`                                |
+| `keel`   | `basic` (alias `keel`)                                        |
+| `sail`   | `basic` (alias `sail`), `hybrid`, `orc_main`, `orc_w_jib`     |
+| `rudder` | `basic` (alias `keel`)                                        |
+
+Optional parts are added by adding their section, and left off by leaving it out or by setting `enabled: false`, which keeps the numbers in the file without putting the part on the boat:
+
+```yaml
+windage:          # above-water drag on mast, rigging and topsides
+  frontal_area_m2: 0.18
+  lateral_area_m2: 0.37
+  drag_coefficient: 0.8
+
+ballast:          # dead weight: adds mass and yaw inertia, makes no force
+  mass: 5.0       # [kg] on top of boat.mass, so leave it out of that
+  x_pos: -0.1     # [m] off-centre ballast adds mass * r^2 to the inertia
+
+jib:              # a second sail on the main's sheet, forward of the mast
+  enabled: false
+  model_type: hybrid   # basic or hybrid
+  area: 0.4
+  x_pos: 0.35
+  CL_max: 1.0
+  CD0: 0.1
+  CD1: 0.8
+```
+
+Wind is set once, in the `sail` section; windage and the jib are given the same wind. The ORC sails model their own jib, so with `orc_main` or `orc_w_jib` put the jib in the `sail` section (`model_type: orc_w_jib` plus `jib_area`) instead of a `jib` section.
+
+A misspelled model name is an error, and a section nothing reads is a warning. To add a model or a new optional part, add its class to the tables in `sailbench/dynamics/component_factory.py`; the hub needs no changes.
+
 ## Running the Web Simulation
 
 Once you've installed the packages, you can play sailbench with manual control with the following instructions.
